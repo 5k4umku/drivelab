@@ -1,0 +1,402 @@
+.builder-shortcut {
+  padding: 9px 12px;
+  border: 1px solid var(--green);
+  border-radius: 5px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+}
+.builder-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 10px 0 20px;
+}
+.builder-toolbar span {
+  font-size: 11px;
+  color: var(--muted);
+  margin-right: 8px;
+}
+.builder-toolbar button {
+  padding: 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: white;
+  font-size: 11px;
+}
+.builder-global {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 16px;
+  background: #fff;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.builder-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.builder-field input,
+.builder-field select {
+  width: 100%;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #ccd7d7;
+  border-radius: 5px;
+  padding: 10px 11px;
+  font: 12px var(--mono);
+  color: var(--ink);
+}
+.builder-field input:disabled {
+  background: #eef1f1;
+  color: #7f8e98;
+}
+.builder-field input:focus,
+.builder-field select:focus {
+  border-color: var(--green);
+}
+#assembly-view {
+  height: 400px;
+  position: relative;
+}
+#assembly-view canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.assembly-scene {
+  margin: 24px 0 30px;
+  background: radial-gradient(ellipse at 50% 60%, #e7f1ec, #f7faf8 75%);
+}
+.assembly-scene .model-footnote {
+  max-width: none;
+}
+.builder-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin: 30px 0 17px;
+}
+.builder-section-title p {
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin-top: 7px;
+}
+.builder-section-title h2 {
+  font-size: 23px;
+}
+.builder-section-title button {
+  white-space: nowrap;
+  font-size: 12px;
+}
+#stage-flow {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  align-items: center;
+  margin-bottom: 17px;
+  padding-bottom: 9px;
+}
+.flow-end {
+  flex: none;
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--muted);
+  padding: 12px;
+}
+.flow-end b {
+  color: var(--ink);
+  font: 11px var(--mono);
+}
+.flow-stage {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 130px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 13px 17px;
+  text-align: left;
+}
+.flow-stage small {
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.flow-stage b {
+  font: 16px var(--mono);
+}
+.flow-stage span {
+  font: 10px var(--mono);
+  color: var(--muted);
+}
+.flow-stage.selected {
+  border-color: var(--green);
+  background: #e9f5ef;
+}
+.builder-cards {
+  display: grid;
+  gap: 10px;
+}
+.builder-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.builder-card.selected {
+  border-color: #81b5a2;
+}
+.builder-card > summary {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 17px 20px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 650;
+}
+.builder-card > summary::-webkit-details-marker {
+  display: none;
+}
+.builder-card > summary > span:nth-child(2) {
+  flex: 1;
+}
+.builder-card > summary small {
+  display: block;
+  font: 10px var(--mono);
+  color: var(--muted);
+  margin-top: 7px;
+  font-weight: 400;
+}
+.builder-card > summary > span:last-child {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.stage-number,
+.shaft-number {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: #dff1e9;
+  color: var(--green);
+  border-radius: 7px;
+  font: 14px var(--mono);
+}
+.shaft-number {
+  background: #e9eef2;
+  color: #516b7e;
+}
+.builder-card-body {
+  border-top: 1px solid var(--line);
+  padding: 20px;
+}
+.builder-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.builder-card .field-note {
+  margin: 16px 0 0;
+  font-size: 11px;
+  line-height: 1.75;
+}
+.builder-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.builder-card-actions button {
+  font-size: 11px;
+}
+.builder-card-actions .danger {
+  color: var(--red);
+  margin-left: auto;
+}
+.builder-card-actions button:disabled {
+  cursor: default;
+}
+.shaft-result {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 18px 20px;
+  margin-bottom: 10px;
+}
+.shaft-result h3 {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.shaft-result h3 small {
+  font: 10px var(--mono);
+  font-weight: 400;
+  color: var(--muted);
+}
+.shaft-result-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 20px;
+  align-items: center;
+}
+.shaft-result th,
+.shaft-result td {
+  font-size: 10px;
+  padding: 10px 8px;
+}
+.shaft-result .table-wrap {
+  overflow-x: auto;
+}
+.bending-plot {
+  width: 100%;
+  height: 118px;
+}
+.bending-plot text {
+  font: 9px var(--mono);
+  fill: #526d68;
+}
+.builder-scope {
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--muted);
+  padding: 18px;
+  border-left: 3px solid #97bbae;
+  background: #ecf1ed;
+  margin: 22px 0 60px;
+}
+.builder-busy #assembly-metrics,
+.builder-busy .assembly-scene,
+.builder-busy #shaft-results,
+.builder-busy #assembly-checks {
+  opacity: 0.45;
+}
+.builder-invalid #assembly-metrics,
+.builder-invalid .assembly-scene,
+.builder-invalid #shaft-results,
+.builder-invalid #assembly-checks {
+  display: none;
+}
+#assembly-error {
+  margin: 18px 0;
+}
+.builder-busy {
+  cursor: progress;
+}
+#constructor {
+  scroll-margin-top: 80px;
+  border-bottom: 1px solid var(--line);
+}
+@media (min-width: 1500px) {
+  #assembly-view {
+    height: 480px;
+  }
+}
+@media (max-width: 1100px) {
+  .builder-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .shaft-result-grid {
+    grid-template-columns: 1fr;
+  }
+  .bending-plot {
+    max-width: 400px;
+  }
+  .builder-global {
+    grid-template-columns: 1fr 1fr;
+  }
+  .builder-global > .builder-field:first-child {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 700px) {
+  #assembly-view {
+    height: 300px;
+  }
+  .builder-fields,
+  .builder-global {
+    grid-template-columns: 1fr;
+  }
+  .builder-global {
+    padding: 15px;
+  }
+  .builder-card > summary {
+    padding: 14px;
+  }
+  .builder-card-body {
+    padding: 15px;
+  }
+  .builder-card > summary > span:last-child {
+    max-width: 65px;
+    text-align: right;
+  }
+  .builder-section-title {
+    align-items: start;
+  }
+  .builder-section-title h2 {
+    font-size: 20px;
+  }
+  .builder-section-title button {
+    padding: 10px;
+    font-size: 10px;
+  }
+  .assembly-scene .viewer-top {
+    gap: 5px;
+  }
+  .assembly-scene .viewer-top > span {
+    font-size: 8px;
+  }
+  .assembly-scene .viewer-button {
+    font-size: 9px;
+    padding: 6px;
+  }
+  .shaft-result {
+    padding: 15px 10px;
+  }
+  .shaft-result h3 {
+    flex-wrap: wrap;
+  }
+  .builder-shortcut {
+    font-size: 10px;
+    padding: 7px;
+  }
+  .top-actions {
+    flex-wrap: wrap;
+  }
+  .builder-toolbar span {
+    width: 100%;
+  }
+  .builder-toolbar {
+    gap: 5px;
+  }
+  .builder-toolbar button {
+    padding: 8px 10px;
+  }
+  .builder-scope {
+    margin-bottom: 30px;
+  }
+  #constructor .page-heading {
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+  #constructor .page-heading p {
+    font-size: 12px;
+  }
+}

@@ -1,5 +1,6 @@
 import { fmt, escapeHTML as e, statusLabel } from "./format.js";
 import { GearViewer } from "./viewer.js";
+import { createBuilder, projectFromInput } from "./builder.js";
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
 const defaults = await fetch("src/defaults.json").then((r) => r.json());
@@ -7,12 +8,42 @@ let inputs = { ...defaults },
   result = null,
   sequence = 0,
   lastId = 0,
-  viewer;
+  viewer,
+  builder,
+  assembly = null,
+  activeStage = 0;
+let project = projectFromInput(inputs);
 const STORAGE = "drivelab-project-v1";
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE));
-  if (saved?.version === 1) inputs = cleanInput(saved.input);
-} catch {}
+  if (saved?.version === 1) project = projectFromInput(cleanInput(saved.input));
+  if (saved?.version === 2) project = cleanProject(saved.project);
+  activeStage =
+    Number.isInteger(saved?.activeStage) &&
+    saved.activeStage >= 0 &&
+    saved.activeStage < project.stages.length
+      ? saved.activeStage
+      : 0;
+  inputs = cleanInput(project.stages[activeStage].input);
+} catch {
+  project = projectFromInput(defaults);
+  activeStage = 0;
+  inputs = { ...defaults };
+}
+function cleanProject(data) {
+  if (
+    !data ||
+    !Array.isArray(data.stages) ||
+    !data.stages.length ||
+    data.stages.length > 64 ||
+    !Array.isArray(data.shafts)
+  )
+    throw Error("Некорректная структура редуктора");
+  return {
+    ...data,
+    stages: data.stages.map((s) => ({ ...s, input: cleanInput(s.input) })),
+  };
+}
 function cleanInput(data) {
   if (!data || typeof data !== "object" || Array.isArray(data))
     throw Error("Некорректные исходные данные");
@@ -42,6 +73,7 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 function showError(message) {
+  builder?.error(message);
   $("#errors").hidden = false;
   $("#errors").textContent = message;
   document.body.classList.remove("recalculating");
@@ -69,34 +101,49 @@ worker.onmessage = ({ data }) => {
     run();
     return;
   }
-  result = data.result;
+  assembly = data.result;
   document.body.classList.remove("recalculating");
-  if (result.errors?.length) {
-    showError(result.errors.join(" · "));
+  if (assembly.errors?.length) {
+    showError(assembly.errors.join(" · "));
     return;
   }
+  result = assembly.stages[activeStage].result;
+  inputs = structuredClone(result.input);
   $("#errors").hidden = true;
   document.body.classList.remove("invalid-input");
   $("#export-word").disabled = false;
   try {
     localStorage.setItem(
       STORAGE,
-      JSON.stringify({ version: 1, input: inputs }),
+      JSON.stringify({ version: 2, project, activeStage }),
     );
   } catch {
     toast("Автосохранение недоступно. Сохраните проект в JSON.");
   }
   render();
+  builder.render(assembly);
 };
 function run(type = "calculate") {
   lastId = ++sequence;
   document.body.classList.add("recalculating");
   $("#export-word").disabled = true;
-  worker.postMessage({ id: lastId, type, input: inputs });
+  builder?.busy();
+  if (type === "material")
+    worker.postMessage({ id: lastId, type, input: inputs });
+  else {
+    project.stages[activeStage].input = structuredClone(inputs);
+    worker.postMessage({
+      id: lastId,
+      type: "assembly",
+      input: { project, activeStage },
+    });
+  }
 }
 function render() {
   const r = result,
     c = r.chosen;
+  $("#active-stage-label").textContent =
+    `Ступень ${activeStage + 1} из ${project.stages.length}`;
   $("#project-heading").innerHTML =
     { spur: "Прямозубая", helical: "Косозубая", herringbone: "Шевронная" }[
       inputs.gearType
@@ -302,7 +349,7 @@ function showInputs() {
     inputGroups
       .map(
         ([title, fields]) =>
-          `<fieldset><legend>${e(title)}</legend><div class="field-grid">${fields.map(([key, label, type = "number"]) => `<label class="field ${type === "text" ? "wide" : ""}">${e(label)}<input name="${key}" type="${type}" ${type === "number" ? 'min="0" step="any"' : ""} required value="${e(inputs[key])}"></label>`).join("")}</div></fieldset>`,
+          `<fieldset><legend>${e(title)}</legend><div class="field-grid">${fields.map(([key, label, type = "number"]) => `<label class="field ${type === "text" ? "wide" : ""}">${e(label)}<input name="${key}" type="${type}" ${type === "number" ? 'min="0" step="any"' : ""} required ${activeStage > 0 && ["power", "speed"].includes(key) ? "readonly" : ""} value="${e(inputs[key])}"></label>`).join("")}</div></fieldset>`,
       )
       .join("") +
     `<label class="checkbox-field"><input name="excludeEdges" type="checkbox" ${inputs.excludeEdges ? "checked" : ""}> Исключать крайние модули, когда доступно больше четырёх</label><fieldset><legend>Условия проверки по ГОСТ</legend><p class="field-note">Коэффициенты по ширине приняты по семинарской таблице Т5. Их окончательное уточнение требует расчёта валов и опор. Подтверждения сохраняются в отчёте.</p><label class="checkbox-field"><input name="faceFactorsConfirmed" type="checkbox" ${inputs.gost?.faceFactorsConfirmed ? "checked" : ""}> Коэффициенты KHβ и KFβ подтверждены для проекта</label><label class="checkbox-field"><input name="surfaceConfirmed" type="checkbox" ${inputs.gost?.surfaceConfirmed ? "checked" : ""}> Условия поверхности и смазки проверены по принятой модели</label></fieldset>`;
@@ -333,11 +380,17 @@ $("#inputs-form").onsubmit = (event) => {
     peakProbabilityFactorConfirmed: form.has("peakProbabilityFactorConfirmed"),
   };
   inputs.selectedModule = 0;
+  if (activeStage === 0) {
+    project.power = inputs.power;
+    project.speed = inputs.speed;
+  }
   $("#inputs-dialog").close();
   run("material");
 };
 $("#reset-project").onclick = () => {
   inputs = { ...defaults };
+  project = projectFromInput(inputs);
+  activeStage = 0;
   $("#inputs-dialog").close();
   run();
   toast("Восстановлен исходный вариант У785 / У685.");
@@ -352,7 +405,9 @@ $$("[data-type]").forEach(
           spur: "Прямозубая передача",
           helical: "Косозубая передача",
           herringbone: "Шевронная передача",
-        }[inputs.gearType] + " 11–01–2–2–3";
+        }[inputs.gearType] + ` · ступень ${activeStage + 1}`;
+      inputs.factorsConfirmed = false;
+      inputs.gost = { ...inputs.gost, faceFactorsConfirmed: false };
       run();
     }),
 );
@@ -361,7 +416,7 @@ $("#save-json").onclick = () =>
     new Blob(
       [
         JSON.stringify(
-          { format: "DriveLab", version: 1, engine: "0.1.0", input: inputs },
+          { format: "DriveLab", version: 2, engine: "0.2.0", project },
           null,
           2,
         ),
@@ -375,11 +430,16 @@ $("#import-file").onchange = async (event) => {
   try {
     const file = event.target.files[0];
     if (!file) return;
-    if (file.size > 200000) throw Error("Файл слишком большой");
+    if (file.size > 2000000) throw Error("Файл слишком большой");
     const saved = JSON.parse(await file.text());
-    if (saved.format !== "DriveLab" || saved.version !== 1)
+    if (saved.format !== "DriveLab" || ![1, 2].includes(saved.version))
       throw Error("Неподдерживаемая версия проекта");
-    inputs = cleanInput(saved.input);
+    project =
+      saved.version === 1
+        ? projectFromInput(cleanInput(saved.input))
+        : cleanProject(saved.project);
+    activeStage = 0;
+    inputs = cleanInput(project.stages[0].input);
     run();
     toast("Проект загружен.");
   } catch (err) {
@@ -453,4 +513,40 @@ const observer = new IntersectionObserver(
   { rootMargin: "-10% 0px -70% 0px" },
 );
 $$(".page-section").forEach((el) => observer.observe(el));
+builder = createBuilder({
+  defaults,
+  getProject: () => project,
+  getActive: () => activeStage,
+  onChange: (next, index) => {
+    project = next;
+    activeStage = index;
+    inputs = cleanInput(project.stages[index].input);
+    run();
+  },
+  onSelect: (index) => {
+    activeStage = index;
+    inputs = cleanInput(project.stages[index].input);
+    run();
+  },
+  onExport: async () => {
+    if (!assembly || assembly.errors?.length) return;
+    const button = $("#assembly-export");
+    button.disabled = true;
+    button.textContent = "Готовим отчёт…";
+    try {
+      const { makeAssemblyReport } = await import("./report.js");
+      const blob = await window.docx.Packer.toBlob(
+        makeAssemblyReport(assembly, window.docx),
+      );
+      download(blob, "DriveLab-reducer.docx");
+      toast("Отчёт по редуктору сохранён.");
+    } catch (error) {
+      toast("Ошибка экспорта: " + error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "↓ Отчёт по редуктору";
+    }
+  },
+});
+builder.controls();
 run();
