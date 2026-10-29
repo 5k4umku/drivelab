@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.sites-local/
+*.log
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+reports/
+vendor/pyodide/*.js
+vendor/pyodide/*.wasm
+vendor/pyodide/*.zip
+vendor/pyodide/pyodide-lock.json
+vendor/three/*.js
+vendor/docx-9.6.1.js

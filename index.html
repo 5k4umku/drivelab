@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#101e2c" />
+    <meta
+      name="description"
+      content="DriveLab: инженерный расчёт зубчатой передачи на Python, сравнение вариантов, 3D зацепление и отчёт Word."
+    />
+    <title>DriveLab — инженерный расчёт передач</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%23101e2c'/%3E%3Ctext x='50' y='69' text-anchor='middle' font-family='Arial' font-size='62' fill='%239fefcb'%3ED%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="importmap">
+      { "imports": { "three": "./vendor/three/three.module.js" } }
+    </script>
+    <script defer src="vendor/docx-9.6.1.js"></script>
+    <script type="module" src="src/app.js"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">К расчёту</a>
+    <aside class="sidebar">
+      <a class="brand" href="#overview"
+        ><span class="brand-mark">D<span>↗</span></span
+        ><span>DriveLab<small>ENGINEERING WORKSPACE</small></span></a
+      >
+      <div class="project-label">ПРОЕКТ 001</div>
+      <div class="project-name">Зубчатая передача</div>
+      <p class="sidebar-note">
+        От исходных данных<br />до обоснованного решения
+      </p>
+      <nav aria-label="Разделы проекта">
+        <a class="active" href="#overview"><span>01</span> Рабочий стол</a>
+        <a href="#variants"
+          ><span>02</span> Варианты <b id="variant-count">—</b></a
+        >
+        <a href="#checks"><span>03</span> Проверки <b id="check-count">—</b></a>
+        <a href="#calculation"><span>04</span> Ход расчёта</a>
+        <a href="#method"><span>05</span> Методика</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <span class="engine-dot"></span
+        ><span id="engine-status">Загрузка Python…</span
+        ><small
+          >Все вычисления на устройстве<br />v0.1 · воспроизводимый
+          расчёт</small
+        >
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="breadcrumbs">
+          Детали машин <span>/</span> Проект передачи
+        </div>
+        <div class="top-actions">
+          <button id="save-json" class="quiet">Сохранить JSON</button
+          ><button id="import-json" class="quiet">Открыть</button
+          ><input
+            type="file"
+            id="import-file"
+            accept=".json,application/json"
+            hidden
+          /><button id="export-word" class="primary" disabled>
+            ↓ Отчёт Word
+          </button>
+        </div>
+      </header>
+      <main id="main">
+        <section id="overview" class="page-section">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow">ПРОЕКТИРОВАНИЕ · РАСЧЁТ · ПРОВЕРКА</div>
+              <h1 id="project-heading">
+                Косозубая<br />передача<span>.</span>
+              </h1>
+              <p>Расчёт по семинарам и проверка по формулам ГОСТ 21354–87.</p>
+            </div>
+            <button id="open-inputs" class="outline">
+              ⚙ Исходные данные <span>↗</span>
+            </button>
+          </div>
+          <div class="type-row">
+            <div class="segmented" role="group" aria-label="Тип передачи">
+              <button data-type="spur">Прямозубая</button
+              ><button data-type="helical" class="selected">Косозубая</button
+              ><button data-type="herringbone">Шевронная</button>
+            </div>
+            <span class="variant-label"
+              >Вариант <strong>11–01–2–2–3</strong></span
+            >
+          </div>
+          <div id="errors" class="error-banner" role="alert" hidden></div>
+          <div class="metrics" id="metrics">
+            <div class="metric">
+              <label>Расчётное ядро</label><strong>CPython</strong
+              ><small>Инициализация WebAssembly…</small>
+            </div>
+          </div>
+          <div class="model-layout">
+            <div class="viewer-card">
+              <div class="viewer-top">
+                <span><i></i> ПАРАМЕТРИЧЕСКАЯ МОДЕЛЬ</span>
+                <div>
+                  <button id="view-front" class="viewer-button">Спереди</button
+                  ><button id="view-iso" class="viewer-button active">3D</button
+                  ><button
+                    id="toggle-lines"
+                    class="viewer-button"
+                    aria-pressed="false"
+                  >
+                    Окружности
+                  </button>
+                </div>
+              </div>
+              <div id="gear-view" aria-label="Интерактивная модель зацепления">
+                <div class="model-loading">
+                  Загружается модель передачи<span
+                    >Python → геометрия → WebGL</span
+                  >
+                </div>
+              </div>
+              <div class="viewer-legend">
+                <span
+                  ><i class="pinion-dot"></i> Шестерня ·
+                  <b id="legend-z1">—</b></span
+                ><span
+                  ><i class="wheel-dot"></i> Колесо ·
+                  <b id="legend-z2">—</b></span
+                ><span>Поворот — мышью · масштаб — колёсиком</span>
+              </div>
+              <div class="playback">
+                <button
+                  id="play-toggle"
+                  class="play"
+                  aria-label="Приостановить вращение"
+                >
+                  Ⅱ</button
+                ><label for="time-scale">Масштаб времени</label
+                ><input
+                  id="time-scale"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="12"
+                /><output id="time-output">0,012×</output
+                ><span id="rpm-label">— мин⁻¹</span>
+              </div>
+              <p class="model-footnote">
+                Эвольвентные боковые поверхности, фактические диаметры и угол
+                наклона. Переход у корня схематичен; модель не заменяет рабочий
+                чертёж. Валы показаны условно.
+              </p>
+            </div>
+            <aside class="design-card">
+              <div class="eyebrow">ВЫБРАННОЕ РЕШЕНИЕ</div>
+              <h2 id="design-title">Рассчитываем…</h2>
+              <p id="design-subtitle">
+                Подбор модуля и взаимно простой пары зубьев.
+              </p>
+              <dl id="design-values"></dl>
+              <div class="material-brief">
+                <span>Материалы и термообработка</span
+                ><b id="materials-summary">34ХН3МА · У785 / У685</b
+                ><small>Колесо на две строки мягче шестерни по Т1.</small>
+              </div>
+              <div id="summary-status" class="status-box pending">
+                Подготовка проверок
+              </div>
+              <a class="text-link" href="#checks"
+                >Посмотреть все проверки <span>↗</span></a
+              >
+            </aside>
+          </div>
+        </section>
+        <section id="variants" class="page-section">
+          <div class="section-heading">
+            <div>
+              <div class="eyebrow">СРАВНЕНИЕ РЕШЕНИЙ</div>
+              <h2>Модуль и числа зубьев</h2>
+            </div>
+            <span class="muted"
+              >Клик по строке — пересчитать выбранный вариант</span
+            >
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>mₙ, мм</th>
+                  <th>z₁ / z₂</th>
+                  <th>u фактическое</th>
+                  <th>δu, %</th>
+                  <th>β, °</th>
+                  <th>Fₐ, Н</th>
+                  <th>σHP / σH</th>
+                  <th>Выбор</th>
+                </tr>
+              </thead>
+              <tbody id="variants-body"></tbody>
+            </table>
+          </div>
+          <p class="section-note">
+            Рекомендация минимизирует ошибку передаточного числа среди
+            допустимых взаимно простых пар. Отношение σHP / σH должно быть не
+            меньше 1. Это числовая проверка при принятых условиях; применимость
+            проверяется отдельно.
+          </p>
+          <div class="section-heading sizes-heading">
+            <div>
+              <h3>Как изменятся результаты при увеличении aw</h3>
+              <p class="section-note">
+                Ширина пересчитывается по ψba. Погрешности fpb выбираются по
+                окончательным диаметрам из Т7.
+              </p>
+            </div>
+          </div>
+          <div id="size-comparison" class="sizes-grid"></div>
+        </section>
+        <section id="checks" class="page-section">
+          <div class="section-heading">
+            <div>
+              <div class="eyebrow">ПРОВЕРКА РАБОТОСПОСОБНОСТИ</div>
+              <h2>Прочность и условия применимости</h2>
+            </div>
+            <span id="check-summary" class="muted"></span>
+          </div>
+          <div id="strength-cards" class="strength-cards"></div>
+          <div id="checks-list" class="checks-grid"></div>
+        </section>
+        <section id="calculation" class="page-section">
+          <div class="section-heading">
+            <div>
+              <div class="eyebrow">ПОСЛЕДОВАТЕЛЬНОСТЬ СЕМИНАРОВ</div>
+              <h2>Расчёт без скрытых шагов</h2>
+            </div>
+            <button id="expand-all" class="outline">Раскрыть все</button>
+          </div>
+          <div id="trace"></div>
+        </section>
+        <section id="method" class="page-section">
+          <div class="eyebrow">ПРОИСХОЖДЕНИЕ ДАННЫХ</div>
+          <h2>Методика и границы модели</h2>
+          <div class="method-grid">
+            <article>
+              <span class="method-index">01</span>
+              <h3>Семинарский профиль</h3>
+              <p>
+                Исходные данные варианта 11–01–2–2–3. Таблицы Т1–Т9 сверены с
+                фотографиями. Шестерня У785; колесо У685 по правилу двух строк.
+                Проектировочный расчёт сохраняет порядок бланка.
+              </p>
+            </article>
+            <article>
+              <span class="method-index">02</span>
+              <h3>Проверка прочности</h3>
+              <p id="rating-method-description">
+                Отдельный расчёт по формулам ГОСТ 21354–87 с указанием принятых
+                коэффициентов и допущений. Применимость каждого приближения
+                показана в проверках.
+              </p>
+              <a
+                href="https://protect.gost.ru/gost/details/01aeced3-5fa6-4ed4-becc-02dbddd25624"
+                target="_blank"
+                rel="noopener"
+                >Официальная карточка стандарта ↗</a
+              >
+            </article>
+            <article>
+              <span class="method-index">03</span>
+              <h3>Воспроизводимость</h3>
+              <p>
+                Числовое ядро на Python работает в отдельном Web Worker.
+                Интерфейс, 3D и Word получают один результат. JSON сохраняет
+                исходные данные и версию модели. Промежуточные значения не
+                округляются.
+              </p>
+            </article>
+          </div>
+          <div class="method-disclosure">
+            <b>Применимость</b>
+            <p>
+              Нулевое внешнее эвольвентное зацепление, x₁ = x₂ = 0, стандартная
+              исходная рейка, стальные колёса после улучшения, нереверсивный
+              режим II. Шевронная модель предполагает симметрию половин и равное
+              распределение нагрузки. При изменении условий табличные
+              коэффициенты нужно пересмотреть.
+            </p>
+          </div>
+        </section>
+        <footer>
+          DriveLab
+          <span>Расчёт — это последовательность проверяемых решений.</span
+          ><a href="#overview">Наверх ↑</a>
+        </footer>
+      </main>
+    </div>
+    <dialog id="inputs-dialog">
+      <form id="inputs-form">
+        <div class="dialog-head">
+          <div>
+            <div class="eyebrow">ПАРАМЕТРЫ ПРОЕКТА</div>
+            <h2>Исходные данные</h2>
+          </div>
+          <button
+            type="button"
+            id="close-inputs"
+            class="icon-button"
+            aria-label="Закрыть"
+          >
+            ×
+          </button>
+        </div>
+        <div id="input-fields"></div>
+        <div class="dialog-footer">
+          <button type="button" id="reset-project" class="quiet">
+            Вернуть мой вариант</button
+          ><button type="submit" class="primary">Применить и рассчитать</button>
+        </div>
+      </form>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
