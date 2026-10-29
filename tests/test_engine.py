@@ -65,7 +65,7 @@ class GeometryInvariants(unittest.TestCase):
 
 class InvalidInput(unittest.TestCase):
     def test_unknown_design_cases_are_not_silently_discarded(self):
-        for key,value in [('x1',0.2),('reverse',True),('accuracy',8),('typo_power',5)]:
+        for key,value in [('x1',0.2),('reverse',True),('accuracy',13),('typo_power',5)]:
             with self.subTest(key=key):
                 result=calculate({**DEFAULTS,key:value})
                 self.assertTrue(result['errors'])
