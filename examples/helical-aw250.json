@@ -75,6 +75,20 @@
     "sigmaFmax2": 1860,
     "gearType": "helical",
     "peakCount": 0,
-    "autoTables": true
+    "autoTables": true,
+    "accuracy": 7,
+    "loadRegime": "manual",
+    "loadDirection": "manual",
+    "autoKA": false,
+    "driverClass": 0,
+    "machineClass": 1,
+    "autoSurface": false,
+    "faceMode": "manual",
+    "faceDeviation": 8,
+    "faceHV": 300,
+    "torqueSide": "input",
+    "materialMode": "table",
+    "yield1": 785,
+    "yield2": 685
   }
 }
