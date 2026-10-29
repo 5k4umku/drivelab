@@ -10,6 +10,7 @@ const D = vm.runInNewContext(
 );
 for (const [name, make] of [
   ["helical-seminar", makeReport],
+  ["automatic-coefficients", makeReport],
   ["reducer-three-stage", makeAssemblyReport],
 ]) {
   const result = JSON.parse(await readFile(new URL(`../examples/${name}.result.json`, import.meta.url), "utf8"));
