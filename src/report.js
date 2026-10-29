@@ -1,5 +1,5 @@
 import { fmt, statusLabel } from "./format.js";
-export function makeReport(result, D) {
+export function makeReport(result, D, childrenOnly = false) {
   const {
     Document,
     Paragraph,
@@ -84,7 +84,7 @@ export function makeReport(result, D) {
   children.push(
     p("Расчёт зубчатой передачи", { heading: HeadingLevel.TITLE }),
     p(`${types[inp.gearType]} передача внешнего зацепления`),
-    p("Вариант 11–01–2–2–3", { run: { bold: true } }),
+    p(inp.title, { run: { bold: true } }),
   );
   children.push(
     p(
@@ -259,6 +259,7 @@ export function makeReport(result, D) {
       keys.map((key) => [key, fmt(inp[key], 6)]),
     ),
   );
+  if (childrenOnly) return children;
   return new Document({
     creator: "DriveLab",
     title: "Расчёт зубчатой передачи",
@@ -323,8 +324,266 @@ export function makeReport(result, D) {
               new Paragraph({
                 alignment: AlignmentType.RIGHT,
                 children: [
-                  new TextRun({ text: "DriveLab 0.1.0   ·   ", size: 16 }),
+                  new TextRun({ text: "DriveLab 0.2.0   ·   ", size: 16 }),
                   new TextRun({ children: [PageNumber.CURRENT], size: 16 }),
+                ],
+              }),
+            ],
+          }),
+        },
+        children,
+      },
+    ],
+  });
+}
+
+export function makeAssemblyReport(assembly, D) {
+  const {
+    Document,
+    Paragraph,
+    TextRun,
+    Table,
+    TableRow,
+    TableCell,
+    HeadingLevel,
+    WidthType,
+    Footer,
+    PageNumber,
+    Math: Equation,
+    MathRun,
+  } = D;
+  const p = (text, options = {}) =>
+    new Paragraph({
+      children: [new TextRun(String(text))],
+      spacing: { after: 120 },
+      ...options,
+    });
+  const h = (text) =>
+    p(text, {
+      heading: HeadingLevel.HEADING_1,
+      keepNext: true,
+      spacing: { before: 260, after: 140 },
+    });
+  const table = (head, rows) =>
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      columnWidths:
+        head.length === 2
+          ? [6100, 3700]
+          : head.map(() => Math.floor(9800 / head.length)),
+      borders: Object.fromEntries(
+        [
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "insideHorizontal",
+          "insideVertical",
+        ].map((key) => [
+          key,
+          { style: D.BorderStyle.SINGLE, size: 4, color: "D9D9D9" },
+        ]),
+      ),
+      rows: [head, ...rows].map(
+        (row, i) =>
+          new TableRow({
+            tableHeader: i === 0,
+            cantSplit: true,
+            children: row.map(
+              (text) =>
+                new TableCell({
+                  shading: i === 0 ? { fill: "E8EEF3" } : undefined,
+                  margins: { top: 80, bottom: 80, left: 100, right: 100 },
+                  verticalAlign: D.VerticalAlign.CENTER,
+                  children: [
+                    new Paragraph({
+                      children: [
+                        new TextRun({
+                          text: String(text),
+                          bold: i === 0,
+                          size: 20,
+                        }),
+                      ],
+                      spacing: { after: 20, line: 240 },
+                    }),
+                  ],
+                }),
+            ),
+          }),
+      ),
+    });
+  const children = [
+    p("Расчёт цилиндрического редуктора", { heading: HeadingLevel.TITLE }),
+    p(assembly.project.name),
+    p(
+      `DriveLab 0.2.0 · ${assembly.stages.length} ступеней · ${assembly.shafts.length} валов`,
+    ),
+    h("Итоговые параметры"),
+    table(
+      ["Параметр", "Значение"],
+      [
+        ["Мощность на входе, кВт", fmt(assembly.project.power)],
+        ["Частота на входе, мин⁻¹", fmt(assembly.project.speed)],
+        ["Общее фактическое передаточное число", fmt(assembly.totalRatio, 6)],
+        ["Общий КПД", fmt(assembly.efficiency, 6)],
+        ["Мощность на выходе, кВт", fmt(assembly.outputPower, 6)],
+        ["Частота на выходе, мин⁻¹", fmt(assembly.outputSpeed, 6)],
+        ["Момент на выходе, Н·м", fmt(assembly.outputTorque, 6)],
+        ["Потери мощности, кВт", fmt(assembly.lostPower, 6)],
+      ],
+    ),
+    p(
+      "Последовательные внешние зацепления, параллельные валы, нулевые смещения профиля. Номера подшипников, ресурс опор, прочность и упругая линия валов, шпонки и конструкция корпуса не рассчитаны. Габаритные проверки не заменяют рабочие чертежи.",
+    ),
+    h("Поток мощности и компоновка"),
+    table(
+      ["Ступень", "Тип зубьев", "uф", "Z, мм", "Направление XY, °"],
+      assembly.stages.map((s) => [
+        String(s.index + 1),
+        { spur: "Прямые", helical: "Косые", herringbone: "Шеврон" }[
+          s.result.input.gearType
+        ],
+        fmt(s.result.chosen.u, 6),
+        fmt(s.axial),
+        fmt(s.angle),
+      ]),
+    ),
+  ];
+  for (const step of assembly.trace)
+    children.push(
+      p(step.title, { keepNext: true }),
+      new Paragraph({
+        children: [new Equation({ children: [new MathRun(step.formula)] })],
+        keepNext: true,
+      }),
+      p(step.detail),
+    );
+  children.push(
+    h("Реакции опор и изгибающие моменты"),
+    p(
+      "На каждом валу две радиальные опоры и одна фиксирующая осевая. Силы приложены в полюсе зацепления: учитывается изгибающий момент от осевой силы на делительном радиусе. Расчёт для номинальной нагрузки; вес деталей, пуск и внешние нагрузки не включены. Знаки относятся к общей системе XYZ.",
+    ),
+  );
+  children.push(
+    new Paragraph({
+      children: [
+        new Equation({
+          children: [new MathRun("ΣF = 0; ΣMx = 0; ΣMy = 0; M = r × F")],
+        }),
+      ],
+    }),
+  );
+  for (const shaft of assembly.shafts) {
+    children.push(
+      h(`Вал ${shaft.index + 1}`),
+      p(
+        `Диаметр для компоновки ${fmt(shaft.diameter)} мм; частота со знаком ${fmt(shaft.signedSpeed)} мин⁻¹; момент ${fmt(shaft.torque)} Н·м. Фиксирующая опора ${shaft.locating}.`,
+      ),
+      table(
+        ["Опора", "Z, мм", "Rx, Н", "Ry, Н", "Rz, Н", "Rrad, Н"],
+        ["A", "B"].map((k) => [
+          k,
+          fmt(shaft[k].z, 2),
+          ...shaft[k].vector.map((v) => fmt(v, 2)),
+          fmt(shaft[k].radial, 2),
+        ]),
+      ),
+      p(
+        `Максимальный суммарный изгибающий момент: ${fmt(shaft.maxBending, 4)} Н·м.`,
+      ),
+      table(
+        ["Сечение Z, мм", "Сторона", "Mx, Н·м", "My, Н·м", "M, Н·м"],
+        shaft.diagram.map((v) => [
+          fmt(v.z, 2),
+          v.side === "left" ? "Слева" : "Справа",
+          fmt(v.Mx, 3),
+          fmt(v.My, 3),
+          fmt(v.M, 3),
+        ]),
+      ),
+    );
+  }
+  children.push(h("Проверки компоновки"));
+  for (const c of assembly.checks)
+    children.push(
+      p(`${statusLabel[c.status]} · ${c.title}`, { keepNext: true }),
+      p(c.detail),
+    );
+  children.push(
+    h("Основания расчёта"),
+    p(
+      "ГОСТ 21354–87: прочность цилиндрических эвольвентных колёс внешнего зацепления. Область реализованного профиля указана в отчёте каждой ступени.",
+    ),
+    p(
+      "Статика опор: равновесие сил и моментов твёрдого тела. OpenStax, University Physics, §12.1: https://openstax.org/books/university-physics-volume-1/pages/12-1-conditions-for-static-equilibrium",
+    ),
+    p(
+      "Коэффициенты KHβ и KFβ задаются для каждой ступени. Изменение опор сбрасывает подтверждение их применимости; статические реакции сами по себе не определяют эти коэффициенты.",
+    ),
+  );
+  for (const stage of assembly.stages) {
+    children.push(
+      p(`Ступень ${stage.index + 1}. Полный расчёт`, {
+        heading: HeadingLevel.HEADING_1,
+        pageBreakBefore: true,
+      }),
+    );
+    children.push(...makeReport(stage.result, D, true));
+  }
+  return new Document({
+    creator: "DriveLab",
+    title: assembly.project.name,
+    styles: {
+      default: {
+        document: {
+          run: { font: "Times New Roman", size: 22, color: "000000" },
+          paragraph: { spacing: { line: 260, after: 100 } },
+        },
+      },
+      paragraphStyles: [
+        {
+          id: "Title",
+          name: "Title",
+          basedOn: "Normal",
+          next: "Normal",
+          run: {
+            font: "Times New Roman",
+            size: 36,
+            bold: true,
+            color: "000000",
+          },
+          paragraph: { spacing: { after: 220 } },
+        },
+        {
+          id: "Heading1",
+          name: "Heading 1",
+          basedOn: "Normal",
+          next: "Normal",
+          run: {
+            font: "Times New Roman",
+            size: 28,
+            bold: true,
+            color: "000000",
+          },
+          paragraph: { keepNext: true, spacing: { before: 240, after: 130 } },
+        },
+      ],
+    },
+    sections: [
+      {
+        properties: {
+          page: {
+            size: { width: 11906, height: 16838 },
+            margin: { top: 1000, bottom: 1000, left: 1100, right: 1000 },
+          },
+        },
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun("DriveLab 0.2.0 · "),
+                  new TextRun({ children: [PageNumber.CURRENT] }),
                 ],
               }),
             ],

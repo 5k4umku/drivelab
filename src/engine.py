@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 from rating import normative_rating
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
 TABLES = json.loads(Path(__file__).with_name('seminar_tables.json').read_text(encoding='utf-8'))
 MATERIALS = [

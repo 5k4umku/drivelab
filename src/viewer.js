@@ -43,13 +43,14 @@ function profile(c, i) {
   }
   return { points, rp };
 }
-function gearGeometry(c, i, width, type) {
+export function gearGeometry(c, i, width, type, hand = 1) {
   const { points, rp } = profile(c, i),
     count = points.length,
     segments = type === "spur" ? 1 : 20;
   const positions = [],
     indices = [],
-    twist = (Math.tan((c.beta * Math.PI) / 180) / rp) * (i === 1 ? 1 : -1);
+    twist =
+      (Math.tan((c.beta * Math.PI) / 180) / rp) * (i === 1 ? 1 : -1) * hand;
   for (let layer = 0; layer <= segments; layer++) {
     const depth = width * (layer / segments - 0.5);
     const a = (type === "herringbone" ? Math.abs(depth) : depth) * twist;
@@ -163,7 +164,13 @@ export class GearViewer {
         roughness: 0.38,
       });
       const gear = new THREE.Mesh(
-        gearGeometry(c, i, result.b, result.input.gearType),
+        gearGeometry(
+          c,
+          i,
+          result.b,
+          result.input.gearType,
+          result.assemblyContext?.hand === "left" ? -1 : 1,
+        ),
         material,
       );
       group.add(gear);

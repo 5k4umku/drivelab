@@ -26,6 +26,8 @@ jobs:
         run: python scripts/examples.py
       - name: Сравнить Python и WebAssembly
         run: node scripts/test-wasm.mjs
+      - name: Проверить выгрузку Word
+        run: node scripts/test-report.mjs
       - name: Собрать браузерное приложение
         run: node scripts/build.mjs
       - name: Подготовить демоверсию

@@ -11,13 +11,14 @@ const ready = (async () => {
     "defaults.json",
     "rating.py",
     "seminar_tables.json",
+    "assembly.py",
   ]) {
     const response = await fetch(new URL(name, self.location));
     if (!response.ok) throw Error(`Не удалось загрузить ${name}`);
     runtime.FS.writeFile("/home/pyodide/" + name, await response.text());
   }
   await runtime.runPythonAsync(
-    "from engine import calculate_json, material_pair, MATERIALS\nimport json",
+    "from engine import calculate_json, material_pair, MATERIALS\nfrom assembly import assembly_json\nimport json",
   );
   self.postMessage({ type: "phase", message: "Расчёт исходного варианта…" });
   self.postMessage({
@@ -26,14 +27,16 @@ const ready = (async () => {
   });
   return runtime;
 })();
-self.onmessage = async ({ data }) => {
+async function handle(data) {
   try {
     const py = await ready;
     py.globals.set("payload", JSON.stringify(data.input));
     const output = await py.runPythonAsync(
       data.type === "material"
         ? "json.dumps(material_pair(json.loads(payload)), ensure_ascii=False)"
-        : "calculate_json(payload)",
+        : data.type === "assembly"
+          ? "assembly_json(payload)"
+          : "calculate_json(payload)",
     );
     self.postMessage({
       id: data.id,
@@ -43,6 +46,10 @@ self.onmessage = async ({ data }) => {
   } catch (error) {
     self.postMessage({ id: data.id, type: "error", message: String(error) });
   }
+}
+let queue = Promise.resolve();
+self.onmessage = ({ data }) => {
+  queue = queue.then(() => handle(data));
 };
 ready.catch((error) =>
   self.postMessage({ type: "error", message: String(error) }),
