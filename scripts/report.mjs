@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { makeReport } from "../src/report.js";
+import { makeReport, makeAssemblyReport } from "../src/report.js";
 // This CLI is optional. Browser export uses the vendored dependency.
 const [input, output, library] = process.argv.slice(2);
 if (!input || !output || !library)
@@ -10,5 +10,10 @@ if (!input || !output || !library)
   );
 const docx = await import(pathToFileURL(resolve(library)).href);
 const result = JSON.parse(await readFile(input, "utf8"));
-await writeFile(output, await docx.Packer.toBuffer(makeReport(result, docx)));
+await writeFile(
+  output,
+  await docx.Packer.toBuffer(
+    result.stages ? makeAssemblyReport(result, docx) : makeReport(result, docx),
+  ),
+);
 console.log("Report saved: " + output);

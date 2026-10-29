@@ -13,12 +13,15 @@ for (const name of [
   "rating.py",
   "defaults.json",
   "seminar_tables.json",
+  "assembly.py",
 ])
   py.FS.writeFile(
     "/home/pyodide/" + name,
     await readFile(resolve(root, "src", name), "utf8"),
   );
-py.runPython("from engine import calculate_json");
+py.runPython(
+  "from engine import calculate_json\nfrom assembly import assembly_json",
+);
 for (const name of ["helical-seminar", "spur", "herringbone"]) {
   const input = JSON.parse(
     await readFile(resolve(root, "examples", name + ".json"), "utf8"),
@@ -39,3 +42,26 @@ for (const name of ["helical-seminar", "spur", "herringbone"]) {
   );
   console.log(name + ": native CPython / WebAssembly parity passed");
 }
+const reducer = JSON.parse(
+  await readFile(resolve(root, "examples/reducer-three-stage.json"), "utf8"),
+);
+const reference = JSON.parse(
+  await readFile(
+    resolve(root, "examples/reducer-three-stage.result.json"),
+    "utf8",
+  ),
+);
+py.globals.set("payload", JSON.stringify({ project: reducer.project }));
+const assembly = JSON.parse(py.runPython("assembly_json(payload)"));
+assert.equal(assembly.errors.length, 0);
+for (const key of ["totalRatio", "outputPower", "outputSpeed", "outputTorque"])
+  assert.ok(Math.abs(assembly[key] - reference[key]) < 1e-8, key);
+for (let i = 0; i < assembly.shafts.length; i++)
+  for (const key of ["radial", "axial"])
+    assert.ok(
+      Math.abs(assembly.shafts[i].A[key] - reference.shafts[i].A[key]) < 1e-8,
+      `Вал ${i + 1}: ${key}`,
+    );
+console.log(
+  "Редуктор: кинематика и реакции опор CPython / WebAssembly совпадают.",
+);
