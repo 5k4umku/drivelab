@@ -14,6 +14,7 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%23101e2c'/%3E%3Ctext x='50' y='69' text-anchor='middle' font-family='Arial' font-size='62' fill='%239fefcb'%3ED%3C/text%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="src/builder.css" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
@@ -33,6 +34,7 @@
         От исходных данных<br />до обоснованного решения
       </p>
       <nav aria-label="Разделы проекта">
+        <a href="#constructor"><span>00</span> Конструктор</a>
         <a class="active" href="#overview"><span>01</span> Рабочий стол</a>
         <a href="#variants"
           ><span>02</span> Варианты <b id="variant-count">—</b></a
@@ -45,7 +47,7 @@
         <span class="engine-dot"></span
         ><span id="engine-status">Загрузка Python…</span
         ><small
-          >Все вычисления на устройстве<br />v0.1 · воспроизводимый
+          >Все вычисления на устройстве<br />v0.2 · воспроизводимый
           расчёт</small
         >
       </div>
@@ -56,6 +58,7 @@
           Детали машин <span>/</span> Проект передачи
         </div>
         <div class="top-actions">
+          <a class="builder-shortcut" href="#constructor">Конструктор</a>
           <button id="save-json" class="quiet">Сохранить JSON</button
           ><button id="import-json" class="quiet">Открыть</button
           ><input
@@ -69,6 +72,7 @@
         </div>
       </header>
       <main id="main">
+        <section id="constructor" class="page-section"></section>
         <section id="overview" class="page-section">
           <div class="page-heading">
             <div>
@@ -89,7 +93,7 @@
               ><button data-type="herringbone">Шевронная</button>
             </div>
             <span class="variant-label"
-              >Вариант <strong>11–01–2–2–3</strong></span
+              ><strong id="active-stage-label">Ступень 1 из 1</strong></span
             >
           </div>
           <div id="errors" class="error-banner" role="alert" hidden></div>
