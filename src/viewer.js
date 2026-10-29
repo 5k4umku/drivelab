@@ -44,6 +44,8 @@ function profile(c, i) {
   return { points, rp };
 }
 export function gearGeometry(c, i, width, type, hand = 1) {
+  if (c.meshType === "internal" && i === 2)
+    return ringGeometry(c, width, type, hand);
   const { points, rp } = profile(c, i),
     count = points.length,
     segments = type === "spur" ? 1 : 20;
@@ -76,6 +78,91 @@ export function gearGeometry(c, i, width, type, hand = 1) {
       a + segments * count,
       b + segments * count,
       c2 + segments * count,
+    );
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Inward involute teeth. The bore is a real hole, not a translucent disc.
+ * Root transitions are schematic; manufacturing interference is not checked. */
+function ringGeometry(c, width, type, hand) {
+  const rb = c.db2 / 2,
+    ra = c.da2 / 2,
+    rf = c.df2 / 2,
+    rp = c.d2 / 2;
+  const alpha = (c.alphaT * Math.PI) / 180,
+    invPitch = Math.tan(alpha) - alpha;
+  const pitch = (2 * Math.PI) / c.z2,
+    half = Math.PI / (2 * c.z2),
+    inner = [];
+  const angle = (r) => {
+    const a = Math.acos(rb / r);
+    return half - invPitch + Math.tan(a) - a;
+  };
+  const point = (r, a) =>
+    inner.push(new THREE.Vector2(r * Math.cos(a), r * Math.sin(a)));
+  for (let tooth = 0; tooth < c.z2; tooth++) {
+    const center = tooth * pitch;
+    for (let j = 0; j <= 7; j++) {
+      const r = rf + ((ra - rf) * j) / 7;
+      point(r, center - angle(r));
+    }
+    for (let j = 1; j <= 3; j++)
+      point(ra, center - angle(ra) + (2 * angle(ra) * j) / 3);
+    for (let j = 1; j <= 7; j++) {
+      const r = ra + ((rf - ra) * j) / 7;
+      point(r, center + angle(r));
+    }
+    for (let j = 1; j < 4; j++)
+      point(rf, center + angle(rf) + ((pitch - 2 * angle(rf)) * j) / 4);
+  }
+  inner.reverse();
+  const outer = Array.from(
+    { length: 128 },
+    (_, j) =>
+      new THREE.Vector2(
+        (c.outerDiameter / 2) * Math.cos((j * 2 * Math.PI) / 128),
+        (c.outerDiameter / 2) * Math.sin((j * 2 * Math.PI) / 128),
+      ),
+  );
+  const points = [...outer, ...inner],
+    count = points.length,
+    segments = type === "spur" ? 1 : 20;
+  const positions = [],
+    indices = [],
+    twist = (Math.tan((c.beta * Math.PI) / 180) / rp) * hand;
+  for (let layer = 0; layer <= segments; layer++) {
+    const depth = width * (layer / segments - 0.5),
+      a = (type === "herringbone" ? Math.abs(depth) : depth) * twist;
+    for (const p of points)
+      positions.push(
+        p.x * Math.cos(a) - p.y * Math.sin(a),
+        p.x * Math.sin(a) + p.y * Math.cos(a),
+        depth,
+      );
+  }
+  for (const [start, length] of [
+    [0, outer.length],
+    [outer.length, inner.length],
+  ])
+    for (let layer = 0; layer < segments; layer++)
+      for (let j = 0; j < length; j++) {
+        const a = layer * count + start + j,
+          b = layer * count + start + ((j + 1) % length);
+        indices.push(a, b, b + count, a, b + count, a + count);
+      }
+  for (const [a, b, d] of THREE.ShapeUtils.triangulateShape(outer, [inner])) {
+    indices.push(
+      d,
+      b,
+      a,
+      a + segments * count,
+      b + segments * count,
+      d + segments * count,
     );
   }
   const geo = new THREE.BufferGeometry();
@@ -189,12 +276,25 @@ export class GearViewer {
         }),
       );
       shaft.rotation.x = Math.PI / 2;
-      group.add(shaft);
+      if (!(c.meshType === "internal" && i === 2)) group.add(shaft);
+      else {
+        shaft.geometry.dispose();
+        shaft.material.dispose();
+      }
       const mark = new THREE.Mesh(
         new THREE.BoxGeometry(c["d" + i] * 0.25, c.m * 0.7, 0.8),
         new THREE.MeshBasicMaterial({ color: i === 1 ? 0xd8ffed : 0xe4f0f7 }),
       );
       mark.position.set(c["d" + i] * 0.23, 0, result.b / 2 + 0.7);
+      if (c.meshType === "internal" && i === 2) {
+        mark.geometry.dispose();
+        mark.geometry = new THREE.BoxGeometry(
+          (c.outerDiameter - c.df2) * 0.25,
+          c.m * 0.7,
+          0.8,
+        );
+        mark.position.x = (c.outerDiameter + c.df2) / 4;
+      }
       group.add(mark);
       for (const [key, color] of [
         ["d", 0x91e5be],
@@ -223,8 +323,10 @@ export class GearViewer {
       }
     }
     this.phase = Math.PI - Math.PI / c.z2;
+    this.pinionPhase = c.meshType === "internal" ? Math.PI : 0;
+    this.gears[0].rotation.z = this.pinionPhase;
     this.gears[1].rotation.z = this.phase;
-    this.extent = c.da1 / 2 + c.a + c.da2 / 2;
+    this.extent = c.outerDiameter || c.da1 / 2 + c.a + c.da2 / 2;
     this.view("iso");
     this.resize();
   }
@@ -247,8 +349,11 @@ export class GearViewer {
         (this.theta +
           (dt * this.scale * this.result.input.speed * 2 * Math.PI) / 60) %
         (2 * Math.PI * this.result.chosen.z2);
-      this.gears[0].rotation.z = this.theta;
-      this.gears[1].rotation.z = this.phase - this.theta / this.result.chosen.u;
+      this.gears[0].rotation.z = this.pinionPhase + this.theta;
+      this.gears[1].rotation.z =
+        this.phase +
+        ((this.result.chosen.meshType === "internal" ? 1 : -1) * this.theta) /
+          this.result.chosen.u;
     }
     this.controls.update();
     if (!document.hidden) this.renderer.render(this.scene, this.camera);

@@ -164,7 +164,14 @@ function render() {
   $("#variant-count").textContent = r.variants.length;
   $("#metrics").innerHTML = [
     ["Межосевое расстояние", r.a, "мм", `Расчётное ${fmt(r.ac)} мм`],
-    ["Нормальный модуль", c?.m, "мм", "По таблице стандартных модулей"],
+    [
+      "Нормальный модуль",
+      c?.m,
+      "мм",
+      inputs.meshType === "internal"
+        ? "Заданная геометрия"
+        : "По таблице стандартных модулей",
+    ],
     [
       "Момент на входе",
       r.T,
@@ -188,9 +195,11 @@ function render() {
   if (c) {
     $("#design-title").textContent = `${c.z1} : ${c.z2}`;
     $("#design-subtitle").textContent =
-      c.m === r.recommended?.m
-        ? "Минимальная ошибка передаточного числа среди найденных пар."
-        : "Выбран вручную для сравнения с рекомендацией.";
+      inputs.meshType === "internal"
+        ? "Внутреннее зацепление: номинальная геометрия по ГОСТ 19274–73."
+        : c.m === r.recommended?.m
+          ? "Минимальная ошибка передаточного числа среди найденных пар."
+          : "Выбран вручную для сравнения с рекомендацией.";
     $("#design-values").innerHTML = [
       ["Передаточное число", fmt(c.u, 6)],
       ["Отклонение", fmt(c.errorPct, 4) + " %"],
@@ -230,8 +239,18 @@ function render() {
       "Измените межосевое расстояние, ширину, модуль или максимальный угол.";
     $("#design-values").innerHTML = "";
   }
+  $("#profile-note").textContent =
+    inputs.meshType === "internal"
+      ? "Внутреннее зацепление: геометрия по ГОСТ 19274–73. Прочность и полная интерференция требуют отдельного расчёта."
+      : "Расчёт по семинарам и проверка по формулам ГОСТ 21354–87.";
+  $("#material-rule-note").textContent =
+    inputs.materialMode === "custom"
+      ? "Свойства заданы пользователем; источник указан в исходных данных."
+      : "Колесо на две строки мягче шестерни по Т1.";
   $("#materials-summary").textContent =
-    `${inputs.material1} · ${inputs.rowName1} / ${inputs.rowName2}`;
+    inputs.materialMode === "custom"
+      ? `${inputs.material1} / ${inputs.material2} · свои свойства`
+      : `${inputs.material1} · ${inputs.rowName1} / ${inputs.rowName2}`;
   const failed = r.checks.filter((x) => x.status === "fail").length,
     pending = r.checks.filter((x) => x.status === "pending").length,
     passed = r.checks.filter((x) => x.status === "pass").length;
@@ -291,7 +310,10 @@ function render() {
           `<article class="strength-card"><label>${label}</label><strong>${fmt(value, 1)} <small>МПа</small></strong><div class="bar"><i style="width:${Math.min(100, (100 * value) / limit)}%;background:${value > limit ? "var(--red)" : "var(--green)"}"></i></div><small>Допускаемое ${fmt(limit, 1)} МПа · использование ${fmt((100 * value) / limit, 1)}%</small></article>`,
       )
       .join("");
-  } else $("#strength-cards").innerHTML = "";
+  } else
+    $("#strength-cards").innerHTML = rating?.reason
+      ? `<p class="field-note">${e(rating.reason)}</p>`
+      : "";
   const open = new Set(
     $$("#trace details[open]").map((x) => x.dataset.section),
   );
@@ -432,7 +454,7 @@ $("#save-json").onclick = () =>
     new Blob(
       [
         JSON.stringify(
-          { format: "DriveLab", version: 2, engine: "0.2.1", project },
+          { format: "DriveLab", version: 2, engine: "0.3.0", project },
           null,
           2,
         ),

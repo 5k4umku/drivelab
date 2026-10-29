@@ -84,21 +84,96 @@ export class AssemblyViewer extends GearViewer {
       mesh.position.z = gear.z;
       mesh.rotation.z =
         (stage.angle * Math.PI) / 180 +
-        (gear.side === 2 ? Math.PI - Math.PI / c.z2 : 0);
+        (gear.side === 2
+          ? Math.PI - Math.PI / c.z2
+          : c.meshType === "internal"
+            ? Math.PI
+            : 0);
       this.rotors[gear.shaft].add(mesh);
     }
+    if (result.motor) {
+      const s = result.shafts[0],
+        m = result.motor,
+        r = m.frame * 0.78,
+        length = m.frame * 2.4,
+        z = s.zMin - length / 2 - 25;
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(r, r, length, 32),
+        material(0x527082),
+      );
+      body.rotation.x = Math.PI / 2;
+      body.position.set(s.x, s.y, z);
+      this.model.add(body);
+      for (let i = 0; i < 10; i++) {
+        const rib = new THREE.Mesh(
+          new THREE.TorusGeometry(r + 2, 2, 4, 32),
+          material(0x668597),
+        );
+        rib.position.set(s.x, s.y, z - length * 0.4 + (length * 0.8 * i) / 9);
+        this.model.add(rib);
+      }
+      const feet = new THREE.Mesh(
+        new THREE.BoxGeometry(r * 2.1, 10, length * 0.7),
+        material(0x3c596c),
+      );
+      feet.position.set(s.x, s.y - r, z);
+      this.model.add(feet);
+      const coupling = new THREE.Mesh(
+        new THREE.CylinderGeometry(s.diameter * 0.8, s.diameter * 0.8, 35, 20),
+        material(0xb4a176),
+      );
+      coupling.rotation.x = Math.PI / 2;
+      coupling.position.z = s.zMin - 12;
+      this.rotors[0].add(coupling);
+    }
     const b = result.bounds;
+    const cameraBounds = [...b];
+    if (result.motor) {
+      const s = result.shafts[0],
+        m = result.motor;
+      cameraBounds[4] = Math.min(b[4], s.zMin - m.frame * 2.4 - 25);
+      cameraBounds[0] = Math.min(b[0], s.x - m.frame);
+      cameraBounds[1] = Math.max(b[1], s.x + m.frame);
+      cameraBounds[2] = Math.min(b[2], s.y - m.frame);
+      cameraBounds[3] = Math.max(b[3], s.y + m.frame);
+    }
     this.center = new THREE.Vector3(
+      (cameraBounds[0] + cameraBounds[1]) / 2,
+      (cameraBounds[2] + cameraBounds[3]) / 2,
+      (cameraBounds[4] + cameraBounds[5]) / 2,
+    );
+    this.extent = Math.max(
+      cameraBounds[1] - cameraBounds[0],
+      cameraBounds[3] - cameraBounds[2],
+      cameraBounds[5] - cameraBounds[4],
+      100,
+    );
+    const clearance = result.project.housing?.clearance ?? 20,
+      mode = result.project.housing?.mode ?? "contour";
+    const box = new THREE.BoxGeometry(
+      b[1] - b[0] + 2 * clearance,
+      b[3] - b[2] + 2 * clearance,
+      b[5] - b[4] + 2 * clearance,
+    );
+    const housingCenter = new THREE.Vector3(
       (b[0] + b[1]) / 2,
       (b[2] + b[3]) / 2,
       (b[4] + b[5]) / 2,
     );
-    this.extent = Math.max(b[1] - b[0], b[3] - b[2], b[5] - b[4], 100);
-    const box = new THREE.BoxGeometry(
-      b[1] - b[0] + 35,
-      b[3] - b[2] + 35,
-      b[5] - b[4] + 20,
-    );
+    if (mode === "transparent") {
+      const shell = new THREE.Mesh(
+        box.clone(),
+        new THREE.MeshStandardMaterial({
+          color: 0x8ca99f,
+          transparent: true,
+          opacity: 0.1,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      );
+      shell.position.copy(housingCenter);
+      this.model.add(shell);
+    }
     this.envelope = new THREE.LineSegments(
       new THREE.EdgesGeometry(box),
       new THREE.LineBasicMaterial({
@@ -108,8 +183,8 @@ export class AssemblyViewer extends GearViewer {
       }),
     );
     box.dispose();
-    this.envelope.position.copy(this.center);
-    this.envelope.visible = this.showEnvelope ?? true;
+    this.envelope.position.copy(housingCenter);
+    this.envelope.visible = mode !== "hidden" && (this.showEnvelope ?? true);
     this.model.add(this.envelope);
     this.view(this.viewMode || "iso");
     this.resize();

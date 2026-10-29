@@ -1,5 +1,7 @@
 import { fmt, escapeHTML as e } from "./format.js";
 import { AssemblyViewer } from "./assembly-viewer.js";
+import { SchematicEditor } from "./schematic.js";
+import { motorControls } from "./motor-controls.js";
 
 const kinds = {
   spur: "Прямозубая",
@@ -62,6 +64,21 @@ const field = (label, key, value, extra = "") =>
 const select = (label, key, value, choices) =>
   `<label class="builder-field">${e(label)}<select data-key="${e(key)}">${options(choices, value)}</select></label>`;
 
+const internalFields = (p) =>
+  [
+    ["Нормальный модуль mn, мм", "manualModule", 2],
+    ["Зубья шестерни z₁", "manualZ1", 20],
+    ["Зубья внутреннего колеса z₂", "manualZ2", 60],
+    ["Ширина венца b, мм", "manualWidth", 30],
+    ["Угол β, ° (для прямозубой — 0)", "manualBeta", 15],
+    ["Толщина обода от впадин, мм", "ringRim", 10],
+  ]
+    .map(([label, key, value]) =>
+      field(label, key, p[key] ?? value, 'type="number" min="0" step="any"'),
+    )
+    .join("") +
+  '<p class="field-note">ГОСТ 19274–73, x₁=x₂=0. Заданные размеры, кинематика и силы. Прочность, полная интерференция и конструкция ступицы требуют отдельного расчёта. Оба колеса вращаются в одну сторону; направление винтовой линии одинаковое.</p>';
+
 export function createBuilder({
   defaults,
   getProject,
@@ -83,7 +100,15 @@ export function createBuilder({
   <div class="builder-section-title"><div><h2>Валы и опоры</h2><p>Ось Z идёт вдоль валов. Для каждого вала — две радиальные опоры и одна фиксирующая осевая.</p></div></div><div id="shaft-editor" class="builder-cards"></div>
   <div class="builder-section-title"><div><h2>Реакции и изгибающие моменты</h2><p>Номинальные силы зацепления. Пуск, вес деталей и внешние силы на концах валов сюда не включены.</p></div></div><div id="shaft-results"></div>
   <div class="builder-section-title"><h2>Проверки компоновки</h2></div><div id="assembly-checks" class="checks-list"></div>
-  <p class="builder-scope">Последовательные внешние цилиндрические зацепления на параллельных валах без смещения профиля. Подшипники, прочность и жёсткость валов требуют отдельного расчёта. Число ступеней не привязано к семинарскому шаблону.</p>`;
+  <p class="builder-scope">Последовательные цилиндрические зацепления на параллельных валах без смещения профиля. Подшипники, прочность и жёсткость валов требуют отдельного расчёта. Число ступеней не привязано к семинарскому шаблону.</p>`;
+  const motorRoot = document.createElement("div");
+  root.querySelector("#builder-global").after(motorRoot);
+  const schemeRoot = document.createElement("div");
+  schemeRoot.className = "schematic-editor";
+  root.querySelector(".assembly-scene").before(schemeRoot);
+  const schematic = new SchematicEditor(schemeRoot, getProject, (p) =>
+    changed(p),
+  );
   function invalidateFactors(p) {
     for (const s of p.stages) {
       s.input.factorsConfirmed = false;
@@ -161,6 +186,7 @@ export function createBuilder({
   function controls() {
     const p = getProject(),
       active = getActive();
+    motorControls(motorRoot, p, (q) => changed(q));
     const openShafts = new Set(
       [...root.querySelectorAll("[data-shaft][open]")].map((el) =>
         Number(el.dataset.shaft),
@@ -201,7 +227,8 @@ export function createBuilder({
           s,
           i,
         ) => `<details class="builder-card ${i === active ? "selected" : ""}" data-stage="${i}" ${i === active ? "open" : ""}><summary><span class="stage-number">${i + 1}</span><span>${kinds[s.input.gearType] || "Ступень"}<small>Вал ${i + 1} → вал ${i + 2} · u = ${fmt(s.input.ratio)}</small></span><span class="stage-status">${latest?.stages[i]?.result?.status === "fail" ? "Есть замечания" : "Параметры ↗"}</span></summary><div class="builder-card-body"><div class="builder-fields">
-    ${select("Тип зубьев", "gearType", s.input.gearType, kinds)}${field("Передаточное число u", "ratio", s.input.ratio, 'type="number" min="1.01" max="20" step="any"')}${field("КПД ступени η", "efficiency", s.input.efficiency, 'type="number" min="0.01" max="1" step="0.001"')}${field("Направление в плоскости XY, °", "angle", s.angle, 'type="number" step="any"')}${field("Положение по Z, мм (пусто — авто)", "axial", s.axial, 'type="number" step="any" placeholder="Автоматически"')}${select("Направление зуба шестерни", "hand", s.hand, { right: "Правое", left: "Левое" })}${field("Межосевое aw, мм (0 — подбор)", "aOverride", s.input.aOverride, 'type="number" min="0" step="any"')}${field("Коэффициент ширины ψbd", "psiBd", s.input.psiBd, 'type="number" min="0.01" max="2" step="any"')}${select("Выбор коэффициентов по ширине", "faceMode", s.input.faceMode ?? "manual", { manual: "Вручную", seminar: "Автоматически по Т5", formula: "По формуле ГОСТ (настройки ступени)" })}${field("KHβ по ширине", "KHbeta", s.input.KHbeta, 'type="number" min="1" step="any"')}${field("KFβ по ширине", "KFbeta", s.input.KFbeta, 'type="number" min="1" step="any"')}
+    ${select("Зацепление", "meshType", s.input.meshType ?? "external", { external: "Внешнее · подбор и прочность", internal: "Внутреннее · заданная геометрия" })}${select("Тип зубьев", "gearType", s.input.gearType, kinds)}${field("Передаточное число u", "ratio", s.input.ratio, 'type="number" min="1.01" max="20" step="any"')}${field("КПД ступени η", "efficiency", s.input.efficiency, 'type="number" min="0.01" max="1" step="0.001"')}${field("Направление в плоскости XY, °", "angle", s.angle, 'type="number" step="any"')}${field("Положение по Z, мм (пусто — авто)", "axial", s.axial, 'type="number" step="any" placeholder="Автоматически"')}${select("Направление зуба шестерни", "hand", s.hand, { right: "Правое", left: "Левое" })}${s.input.meshType === "internal" ? internalFields(s.input) : `${field("Межосевое aw, мм (0 — подбор)", "aOverride", s.input.aOverride, 'type="number" min="0" step="any"')}${field("Коэффициент ширины ψbd", "psiBd", s.input.psiBd, 'type="number" min="0.01" max="2" step="any"')}${select("Выбор коэффициентов по ширине", "faceMode", s.input.faceMode ?? "manual", { manual: "Вручную", seminar: "Автоматически по Т5", formula: "По формуле ГОСТ (настройки ступени)" })}${field("KHβ по ширине", "KHbeta", s.input.KHbeta, 'type="number" min="1" step="any"')}${field("KFβ по ширине", "KFbeta", s.input.KFbeta, 'type="number" min="1" step="any"')}`}
+
     </div><p class="field-note">Угол задаёт направление от оси шестерни к оси колеса. Автоматическое Z разводит соседние венцы с зазором 20 мм. При выборе Т5 коэффициенты пересчитываются по расположению венцов и опор. Формула ГОСТ настраивается в исходных данных ступени.</p><div class="builder-card-actions"><button class="outline" data-detail="${i}">Расчёт ступени ${i + 1} ↗</button><button class="quiet" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Переместить ступень ${i + 1} выше">↑</button><button class="quiet" data-down="${i}" ${i === p.stages.length - 1 ? "disabled" : ""} aria-label="Переместить ступень ${i + 1} ниже">↓</button><button class="quiet danger" data-remove="${i}" ${p.stages.length === 1 ? "disabled" : ""}>Удалить ступень ${i + 1}</button></div></div></details>`,
       )
       .join("");
@@ -220,10 +247,16 @@ export function createBuilder({
                   ? null
                   : Number(el.value);
           else {
-            s.input[key] = ["gearType", "faceMode"].includes(key)
+            s.input[key] = ["gearType", "faceMode", "meshType"].includes(key)
               ? el.value
               : Number(el.value);
             s.input.selectedModule = 0;
+            if (key === "meshType" && el.value === "internal") {
+              s.input.faceMode = "manual";
+              s.input.ratio =
+                (s.input.manualZ2 ?? defaults.manualZ2) /
+                (s.input.manualZ1 ?? defaults.manualZ1);
+            }
           }
           changed(p, i);
         }),
@@ -341,6 +374,7 @@ export function createBuilder({
             `<div class="metric"><label>${a}</label><strong>${b}<span>${c}</span></strong><small>${d}</small></div>`,
         )
         .join("");
+      schematic.update(data);
       root.querySelector("#stage-flow").innerHTML =
         `<span class="flow-end">Вход<br><b>${fmt(data.project.speed, 0)} мин⁻¹</b></span>` +
         data.stages
