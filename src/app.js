@@ -181,9 +181,9 @@ function render() {
   $("#check-count").textContent = `${passed}/${r.checks.length}`;
   $("#summary-status").className = "status-box " + r.status;
   $("#summary-status").textContent = failed
-    ? `${failed} условий не выполнено. ${pending ? `Ещё ${pending} требуют уточнения.` : ""}`
+    ? `Не выполнено условий: ${failed}. ${pending ? `Требуют уточнения: ${pending}.` : ""}`
     : pending
-      ? `Числовые проверки выполнены. ${pending} условий требуют уточнения.`
+      ? `Числовые проверки выполнены. Требуют уточнения: ${pending}.`
       : "Проверки для заданной модели выполнены.";
   $("#check-summary").textContent =
     `Выполнено ${passed} · не выполнено ${failed} · уточнить ${pending}`;
