@@ -6,6 +6,7 @@ Scope: standard 20-degree rack, x1=x2=0, oil lubrication, steel U/U gears.
 Units: mm, N, N*m, MPa, rpm. No third-party dependency.
 """
 import math
+from coefficients import face_factors
 
 SOURCE = 'ГОСТ 21354-87, приложение 1'
 PDF_URL = 'https://files.stroyinf.ru/Data2/1/4294832/4294832225.pdf'
@@ -43,6 +44,8 @@ def normative_rating(p, c, b, T, step=None, check=None):
             return False
     if not isinstance(p, dict) or not isinstance(c, dict):
         return reject('Исходные данные и геометрия должны быть объектами JSON')
+    if p.get('_tableMissing'):
+        return reject('Автоматическая Т7 не содержит fpb для выбранного модуля или диаметра. Задайте обоснованные погрешности вручную и отключите Т7.')
     cfg = p.get('gost', {})
     if not isinstance(cfg, dict):
         return reject('gost должен быть объектом JSON')
@@ -146,6 +149,8 @@ def _normative_rating(p, c, b, T, step=None, check=None):
         return rejected('Приближение YFS реализовано для исходного контура 20° и x₁=x₂=0')
     if any(p.get(f'treatment{i}', 'У') != 'У' for i in (1, 2)):
         return rejected('Материальная модель этого профиля ограничена улучшенной сталью У / У')
+    if p.get('mF',6) != 6:
+        return rejected('Профиль улучшенной стали У / У использует показатель кривой изгибной усталости qF=6')
     if c['m'] < 1 or c['v'] > 25 or not cfg.get('oil', True):
         return rejected('Область ГОСТ: модуль ≥1 мм, v≤25 м/с, работа со смазкой маслом')
     m, beta, at, ea = c['m'], abs(math.radians(c['beta'])), math.radians(c['alphaT']), c['epsilonAlpha']
@@ -227,7 +232,27 @@ def _normative_rating(p, c, b, T, step=None, check=None):
         return rejected('В этом консервативном профиле требуется 0,4≤aα≤1 и yα≥0')
     khb = cfg.get('KHbeta', p['KHbeta'])
     kfb = cfg.get('KFbeta', p['KFbeta'])
-    if 'KHbeta0' in cfg:
+    khv, kfv = 1 + wh * face_width / (Ft * p['KA']), 1 + wf * face_width / (Ft * p['KA'])
+    face_auto = None
+    if p.get('faceMode') == 'formula':
+        if gear_type == 'herringbone':
+            return rejected('Автоматическая формула KHβ⁰ не распространяется на шеврон в этой реализации')
+        try:
+            face_auto = face_factors(width=face_width, diameter=c['d1'], module=m, ea=ea,
+                beta=beta, at=at, force=Ft, ka=p['KA'], khv=khv, stiffness=stiffness,
+                zeps=zeps, velocity=c['v'], hv=p['faceHV'], deviation=p['faceDeviation'], torque_side=p['torqueSide'])
+        except ValueError as error:
+            return rejected(str(error))
+        khb, kfb = face_auto['KHbeta'], face_auto['KFbeta']
+        for label, formula, unit in [
+            ('KHbeta0','KHβ⁰=1+0,4 b fkβ⁰ c′ cosαt/(Ft KA KHv Zε²)+Kk(b/d₁)²',''),
+            ('KHw','KHw=1−20/((0,01 HV+2)²(v+4)^0,25)',''),
+            ('NF','NF=(b/h)²/((b/h)²+b/h+1)',''),
+            ('KHbeta','KHβ=1+(KHβ⁰−1)KHw',''), ('KFbeta','KFβ=(KHβ⁰)^NF','')]:
+            emit(label,formula,face_auto[label],unit,'табл.6.7–6.7.2; табл.13.4',
+                 f"b={n(face_width)}; d₁={n(c['d1'])}; fkβ⁰={n(p['faceDeviation'])} мкм; HV={n(p['faceHV'])}; Kk={n(face_auto['Kk'])}; KHβ⁰={n(face_auto['KHbeta0'])}; KHw={n(face_auto['KHw'])}; NF={n(face_auto['NF'])}")
+        assumptions[1] = 'KHβ и KFβ вычислены по полному fkβ⁰, заданному пользователем. Достоверность перекоса и HV требует обоснования.'
+    if 'KHbeta0' in cfg and face_auto is None:
         h = 2 * m if helical else 2 * m / ea
         bh = face_width / h
         nf = bh * bh / (bh * bh + bh + 1)
@@ -250,14 +275,14 @@ def _normative_rating(p, c, b, T, step=None, check=None):
         ('g0','g0 — табл.9 по m и точности',g0,f'm={n(m)} мм; степень={accuracy} → {n(g0)}','','табл.9'),
         ('wHv','wHv=min(wlim; δH g0 v √(aw/u))',wh,f'min({dynamic_limit}; {n(dh)}×{n(g0)}×{n(c["v"])}×√({n(aw)}/{n(c["u"])}))','Н/мм','табл.6.6,7'),
         ('wFv','wFv=min(wlim; δF g0 v √(aw/u))',wf,f'min({dynamic_limit}; {n(df)}×{n(g0)}×{n(c["v"])}×√({n(aw)}/{n(c["u"])}))','Н/мм','табл.13.3,7'),
-        ('KHβ','KHβ — заданный коэффициент по ширине',khb,n(khb),'','табл.6.7; вход проекта'),
-        ('KFβ','KFβ — вход или (KHβ0)^NF',kfb,n(kfb),'','табл.13.4; вход проекта'),
+        ('KHβ','KHβ=1+(KHβ⁰−1)KHw' if face_auto else 'KHβ — заданный коэффициент по ширине',khb,n(khb),'','табл.6.7; формула' if face_auto else 'табл.6.7; вход проекта'),
+        ('KFβ','KFβ=(KHβ⁰)^NF' if face_auto else 'KFβ — вход или (KHβ0)^NF',kfb,n(kfb),'','табл.13.4; формула' if face_auto else 'табл.13.4; вход проекта'),
     ]:
         emit(title,formula,value,unit,page,sub)
     def tooth_factor(ka, kv, kb, force, bending=False, trace_name=None):
-        if not helical and bending:
+        if not helical:
             if trace_name:
-                emit(trace_name,'KFα=1 для предварительной проверки одной пары прямых зубьев',1.,page='табл.13.5',substitution='β=0° → KFα=1')
+                emit(trace_name,'Kα=1 для прямозубой передачи',1.,page='табл.6.8; табл.13.5',substitution='β=0° → KHα=KFα=1')
             return 1.
         correction = .4 * cgamma * face_width * max(0, a_alpha * fpbe - (0 if bending else y_alpha)) / (force * ka * kv * kb)
         raw = eg / 2 * (.9 + correction) if eg < 2 else .9 + math.sqrt(2 * (eg - 1) / eg) * correction
@@ -374,7 +399,7 @@ def _normative_rating(p, c, b, T, step=None, check=None):
     for title,key in [('Контактная выносливость','H'),('Изгибная выносливость шестерни','F1'),('Изгибная выносливость колеса','F2'),('Контакт при максимуме','Hmax'),('Изгиб шестерни при максимуме','Fmax1'),('Изгиб колеса при максимуме','Fmax2')]:
         verify(title, margins[key] >= 1, f'Отношение допускаемого к расчётному напряжению: {margins[key]:.4f}; должно быть ≥1. При принятых допущениях.')
     verify('Факторы распределения по ширине', True if cfg.get('faceFactorsConfirmed') else 'pending',
-           'KHβ/KFβ — явные входные коэффициенты. Для уточнения нужны валы, опоры, погрешности направления зуба и монтаж.')
+           'KHβ/KFβ вычислены по заданному полному перекосу fkβ⁰ и HV; исходный перекос нужно подтвердить.' if face_auto else 'KHβ/KFβ — входные значения или приближение Т5 семинара. Для уточнения нужны деформации, погрешности направления зуба и монтаж.')
     verify('Условия обработки и смазки', True if cfg.get('surfaceConfirmed') else 'pending',
            'Предполагаются стандартный контур, улучшенная сталь, заданная шероховатость, масло, отсутствие ступеньки шлифования и упрочнения корня.')
     verify('Запас при максимальном изгибе', True if cfg.get('peakProbabilityFactorConfirmed') else 'pending',
@@ -393,4 +418,5 @@ def _normative_rating(p, c, b, T, step=None, check=None):
                 KH=kh, KF=kf, KHv=khv, KFv=kfv, KHalpha=kha, KFalpha=kfa,
                 KHbeta=khb, KFbeta=kfb, epsilonBeta=eb, faceWidth=face_width,
                 loadShare=load_share, margins=margins, assumptions=assumptions,
+                faceAuto=face_auto,
                 trace=local_trace, checks=local_checks, source=PDF_URL)

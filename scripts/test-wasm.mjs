@@ -11,6 +11,7 @@ const py = await loadPyodide({
 for (const name of [
   "engine.py",
   "rating.py",
+  "coefficients.py",
   "defaults.json",
   "seminar_tables.json",
   "assembly.py",
@@ -22,7 +23,7 @@ for (const name of [
 py.runPython(
   "from engine import calculate_json\nfrom assembly import assembly_json",
 );
-for (const name of ["helical-seminar", "spur", "herringbone"]) {
+for (const name of ["helical-seminar", "spur", "herringbone", "automatic-coefficients"]) {
   const input = JSON.parse(
     await readFile(resolve(root, "examples", name + ".json"), "utf8"),
   ).input;
@@ -40,6 +41,8 @@ for (const name of ["helical-seminar", "spur", "herringbone"]) {
     Math.abs(actual.rating.h - expected.rating.h) < 1e-8,
     `${name}: stress`,
   );
+  for (const key of ['muH','muF','YA','KA','YR','ZR']) assert.equal(actual.input[key],expected.input[key],key);
+  assert.deepEqual(actual.rating.faceAuto,expected.rating.faceAuto);
   console.log(name + ": native CPython / WebAssembly parity passed");
 }
 const reducer = JSON.parse(

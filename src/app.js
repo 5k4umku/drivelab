@@ -1,6 +1,7 @@
 import { fmt, escapeHTML as e, statusLabel } from "./format.js";
 import { GearViewer } from "./viewer.js";
 import { createBuilder, projectFromInput } from "./builder.js";
+import { settingsFields, bindSettings, coefficientPanel } from "./settings.js";
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
 const defaults = await fetch("src/defaults.json").then((r) => r.json());
@@ -108,6 +109,7 @@ worker.onmessage = ({ data }) => {
     return;
   }
   result = assembly.stages[activeStage].result;
+  project = assembly.project;
   inputs = structuredClone(result.input);
   $("#errors").hidden = true;
   document.body.classList.remove("invalid-input");
@@ -142,6 +144,14 @@ function run(type = "calculate") {
 function render() {
   const r = result,
     c = r.chosen;
+  let panel = $("#coefficients");
+  if (!panel) {
+    panel = document.createElement("section");
+    panel.id = "coefficients";
+    panel.className = "page-section";
+    $("#calculation").before(panel);
+  }
+  panel.innerHTML = coefficientPanel(r);
   $("#active-stage-label").textContent =
     `Ступень ${activeStage + 1} из ${project.stages.length}`;
   $("#project-heading").innerHTML =
@@ -345,7 +355,7 @@ const inputGroups = [
 ];
 function showInputs() {
   $("#input-fields").innerHTML =
-    `<fieldset><legend>Материал и термообработка</legend><div class="field-grid"><label class="field">Материал шестерни<input name="material1" value="${e(inputs.material1)}" readonly></label><label class="field">Материал колеса<input name="material2" value="${e(inputs.material2)}" readonly></label><label class="field wide">Класс шестерни по Т1<select name="row1">${["У345", "У395", "У440", "У490", "У540", "У590", "У640", "У685", "У735", "У785"].map((v, i) => `<option value="${i}" ${i < 2 ? "disabled" : ""} ${inputs.row1 === i ? "selected" : ""}>${v}</option>`).join("")}</select></label></div><div class="material-preview">Шестерня: <b>${e(inputs.rowName1)}</b> · ${inputs.hb1min}–${inputs.hb1max} HB<br>Колесо: <b>${e(inputs.rowName2)}</b> · ${inputs.hb2min}–${inputs.hb2max} HB</div><p class="field-note">Класс шестерни остаётся по таблице. Колесо автоматически получает класс на две строки мягче. При смене класса проверьте достижимость свойств выбранной стали и размер заготовки.</p></fieldset>` +
+    `<fieldset><legend>Материал и термообработка</legend><div class="field-grid"><label class="field">Материал шестерни<input name="material1" value="${e(inputs.material1)}" maxlength="100"></label><label class="field">Материал колеса<input name="material2" value="${e(inputs.material2)}" maxlength="100"></label><label class="field wide">Класс шестерни по Т1<select name="row1">${["У345", "У395", "У440", "У490", "У540", "У590", "У640", "У685", "У735", "У785"].map((v, i) => `<option value="${i}" ${i < 2 ? "disabled" : ""} ${inputs.row1 === i ? "selected" : ""}>${v}</option>`).join("")}</select></label></div><div class="material-preview">Шестерня: <b>${e(inputs.rowName1)}</b> · ${inputs.hb1min}–${inputs.hb1max} HB<br>Колесо: <b>${e(inputs.rowName2)}</b> · ${inputs.hb2min}–${inputs.hb2max} HB</div><p class="field-note">Класс шестерни остаётся по таблице. Колесо автоматически получает класс на две строки мягче. При смене класса проверьте достижимость свойств выбранной стали и размер заготовки.</p></fieldset>` +
     inputGroups
       .map(
         ([title, fields]) =>
@@ -354,11 +364,15 @@ function showInputs() {
       .join("") +
     `<label class="checkbox-field"><input name="excludeEdges" type="checkbox" ${inputs.excludeEdges ? "checked" : ""}> Исключать крайние модули, когда доступно больше четырёх</label><fieldset><legend>Условия проверки по ГОСТ</legend><p class="field-note">Коэффициенты по ширине приняты по семинарской таблице Т5. Их окончательное уточнение требует расчёта валов и опор. Подтверждения сохраняются в отчёте.</p><label class="checkbox-field"><input name="faceFactorsConfirmed" type="checkbox" ${inputs.gost?.faceFactorsConfirmed ? "checked" : ""}> Коэффициенты KHβ и KFβ подтверждены для проекта</label><label class="checkbox-field"><input name="surfaceConfirmed" type="checkbox" ${inputs.gost?.surfaceConfirmed ? "checked" : ""}> Условия поверхности и смазки проверены по принятой модели</label></fieldset>`;
   const tables = document.createElement("fieldset");
-  tables.innerHTML = `<legend>Выбор табличных данных</legend><label class="checkbox-field"><input name="autoTables" type="checkbox" ${inputs.autoTables ? "checked" : ""}> Автоматически выбирать δH, δF по Т6 и погрешности fpb по Т7</label><p class="field-note">Точность 7. При включении введённые вручную δH, δF и fpb заменяются табличными для типа зубьев и фактических диаметров. g₀ используется в проектировочном расчёте; проверочная динамика выбирает g₀ по ГОСТ.</p>`;
+  tables.innerHTML = `<legend>Выбор табличных данных</legend><label class="checkbox-field"><input name="autoTables" type="checkbox" ${inputs.autoTables ? "checked" : ""}> Автоматически выбирать δH, δF по Т6 и погрешности fpb по Т7</label><p class="field-note">Точность выбирается в настройках нагрузки. При включении введённые вручную δH, δF и fpb заменяются табличными для типа зубьев и фактических диаметров. g₀ используется в проектировочном расчёте; проверочная динамика выбирает g₀ по ГОСТ.</p>`;
   $("#input-fields").append(tables);
   const peak = document.createElement("fieldset");
   peak.innerHTML = `<legend>Максимальная нагрузка</legend><label class="field">Коэффициент Sγ<input name="peakProbabilityFactor" type="number" min="1" step="any" value="${e(inputs.gost?.peakProbabilityFactor ?? 1.75)}" required></label><label class="checkbox-field"><input name="peakProbabilityFactorConfirmed" type="checkbox" ${inputs.gost?.peakProbabilityFactorConfirmed ? "checked" : ""}> Выбор Sγ обоснован для конструкции</label><p class="field-note">1,75 — начальное проектное допущение, а не универсальное предписание для всех материалов. Обоснование по п.4.2.4 и таблицам 18–19 ГОСТ. Число повторений максимума задаётся отдельно в режиме работы.</p>`;
   $("#input-fields").append(peak);
+  const settings = document.createElement("div");
+  settings.innerHTML = settingsFields(inputs);
+  $("#input-fields").prepend(settings);
+  bindSettings($("#input-fields"));
   $("#inputs-dialog").showModal();
 }
 $("#open-inputs").onclick = showInputs;
@@ -372,6 +386,8 @@ $("#inputs-form").onsubmit = (event) => {
   }
   inputs.excludeEdges = form.has("excludeEdges");
   inputs.autoTables = form.has("autoTables");
+  for (const key of ["autoKA", "autoSurface", "materialConfirmed"])
+    inputs[key] = form.has(key);
   inputs.gost = {
     ...inputs.gost,
     faceFactorsConfirmed: form.has("faceFactorsConfirmed"),
@@ -416,7 +432,7 @@ $("#save-json").onclick = () =>
     new Blob(
       [
         JSON.stringify(
-          { format: "DriveLab", version: 2, engine: "0.2.0", project },
+          { format: "DriveLab", version: 2, engine: "0.2.1", project },
           null,
           2,
         ),

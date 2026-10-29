@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'))
 from engine import DEFAULTS,calculate
 from assembly import from_single, new_shaft, calculate_assembly
-for name,patch in [('helical-seminar',{}),('helical-aw250',{'aOverride':250}),('spur',{'gearType':'spur'}),('herringbone',{'gearType':'herringbone'})]:
+for name,patch in [('helical-seminar',{}),('helical-aw250',{'aOverride':250}),('spur',{'gearType':'spur'}),('herringbone',{'gearType':'herringbone'}),('automatic-coefficients',{'loadRegime':'IV','loadDirection':'reversing','autoKA':True,'faceMode':'formula','autoSurface':True,'accuracy':8})]:
     p={**DEFAULTS,**patch}
     (ROOT/'examples'/f'{name}.json').write_text(json.dumps({'format':'DriveLab','version':1,'engine':'0.1.0','input':p},ensure_ascii=False,indent=2),encoding='utf-8')
     r=calculate(p,compare=True)
