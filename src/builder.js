@@ -43,6 +43,10 @@ export function newStage(defaults) {
     aOverride: 0,
     selectedModule: 0,
     factorsConfirmed: false,
+    faceMode: "seminar",
+    loadRegime: "II",
+    loadDirection: "oneway",
+    autoKA: true,
   };
   return { input, angle: 0, axial: null, hand: "right" };
 }
@@ -197,8 +201,8 @@ export function createBuilder({
           s,
           i,
         ) => `<details class="builder-card ${i === active ? "selected" : ""}" data-stage="${i}" ${i === active ? "open" : ""}><summary><span class="stage-number">${i + 1}</span><span>${kinds[s.input.gearType] || "Ступень"}<small>Вал ${i + 1} → вал ${i + 2} · u = ${fmt(s.input.ratio)}</small></span><span class="stage-status">${latest?.stages[i]?.result?.status === "fail" ? "Есть замечания" : "Параметры ↗"}</span></summary><div class="builder-card-body"><div class="builder-fields">
-    ${select("Тип зубьев", "gearType", s.input.gearType, kinds)}${field("Передаточное число u", "ratio", s.input.ratio, 'type="number" min="1.01" max="20" step="any"')}${field("КПД ступени η", "efficiency", s.input.efficiency, 'type="number" min="0.01" max="1" step="0.001"')}${field("Направление в плоскости XY, °", "angle", s.angle, 'type="number" step="any"')}${field("Положение по Z, мм (пусто — авто)", "axial", s.axial, 'type="number" step="any" placeholder="Автоматически"')}${select("Направление зуба шестерни", "hand", s.hand, { right: "Правое", left: "Левое" })}${field("Межосевое aw, мм (0 — подбор)", "aOverride", s.input.aOverride, 'type="number" min="0" step="any"')}${field("Коэффициент ширины ψbd", "psiBd", s.input.psiBd, 'type="number" min="0.01" max="2" step="any"')}${field("KHβ по ширине", "KHbeta", s.input.KHbeta, 'type="number" min="1" step="any"')}${field("KFβ по ширине", "KFbeta", s.input.KFbeta, 'type="number" min="1" step="any"')}
-    </div><p class="field-note">Угол задаёт направление от оси шестерни к оси колеса. Автоматическое Z разводит соседние венцы с зазором 20 мм. KHβ и KFβ назначаются по методике для выбранной компоновки.</p><div class="builder-card-actions"><button class="outline" data-detail="${i}">Расчёт ступени ${i + 1} ↗</button><button class="quiet" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Переместить ступень ${i + 1} выше">↑</button><button class="quiet" data-down="${i}" ${i === p.stages.length - 1 ? "disabled" : ""} aria-label="Переместить ступень ${i + 1} ниже">↓</button><button class="quiet danger" data-remove="${i}" ${p.stages.length === 1 ? "disabled" : ""}>Удалить ступень ${i + 1}</button></div></div></details>`,
+    ${select("Тип зубьев", "gearType", s.input.gearType, kinds)}${field("Передаточное число u", "ratio", s.input.ratio, 'type="number" min="1.01" max="20" step="any"')}${field("КПД ступени η", "efficiency", s.input.efficiency, 'type="number" min="0.01" max="1" step="0.001"')}${field("Направление в плоскости XY, °", "angle", s.angle, 'type="number" step="any"')}${field("Положение по Z, мм (пусто — авто)", "axial", s.axial, 'type="number" step="any" placeholder="Автоматически"')}${select("Направление зуба шестерни", "hand", s.hand, { right: "Правое", left: "Левое" })}${field("Межосевое aw, мм (0 — подбор)", "aOverride", s.input.aOverride, 'type="number" min="0" step="any"')}${field("Коэффициент ширины ψbd", "psiBd", s.input.psiBd, 'type="number" min="0.01" max="2" step="any"')}${select("Выбор коэффициентов по ширине", "faceMode", s.input.faceMode ?? "manual", { manual: "Вручную", seminar: "Автоматически по Т5", formula: "По формуле ГОСТ (настройки ступени)" })}${field("KHβ по ширине", "KHbeta", s.input.KHbeta, 'type="number" min="1" step="any"')}${field("KFβ по ширине", "KFbeta", s.input.KFbeta, 'type="number" min="1" step="any"')}
+    </div><p class="field-note">Угол задаёт направление от оси шестерни к оси колеса. Автоматическое Z разводит соседние венцы с зазором 20 мм. При выборе Т5 коэффициенты пересчитываются по расположению венцов и опор. Формула ГОСТ настраивается в исходных данных ступени.</p><div class="builder-card-actions"><button class="outline" data-detail="${i}">Расчёт ступени ${i + 1} ↗</button><button class="quiet" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Переместить ступень ${i + 1} выше">↑</button><button class="quiet" data-down="${i}" ${i === p.stages.length - 1 ? "disabled" : ""} aria-label="Переместить ступень ${i + 1} ниже">↓</button><button class="quiet danger" data-remove="${i}" ${p.stages.length === 1 ? "disabled" : ""}>Удалить ступень ${i + 1}</button></div></div></details>`,
       )
       .join("");
     root.querySelectorAll("[data-stage] [data-key]").forEach(
@@ -216,7 +220,9 @@ export function createBuilder({
                   ? null
                   : Number(el.value);
           else {
-            s.input[key] = key === "gearType" ? el.value : Number(el.value);
+            s.input[key] = ["gearType", "faceMode"].includes(key)
+              ? el.value
+              : Number(el.value);
             s.input.selectedModule = 0;
           }
           changed(p, i);

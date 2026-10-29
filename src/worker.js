@@ -10,6 +10,7 @@ const ready = (async () => {
     "engine.py",
     "defaults.json",
     "rating.py",
+    "coefficients.py",
     "seminar_tables.json",
     "assembly.py",
   ]) {

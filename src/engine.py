@@ -7,8 +7,9 @@ import json
 import math
 from pathlib import Path
 from rating import normative_rating
+from coefficients import prepare, REGIMES
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
 TABLES = json.loads(Path(__file__).with_name('seminar_tables.json').read_text(encoding='utf-8'))
 MATERIALS = [
@@ -30,19 +31,22 @@ def table_fpb(module, diameter, grade=7):
     table=TABLES['T7']
     group=next((i for i,(lo,hi) in enumerate(table['moduleGroupsMm']) if lo<=module<=hi),None)
     column=next((i for i,upper in enumerate(table['diameterUpperBoundsMm']) if diameter<=upper),None)
-    if group is None or column is None: return None
+    if group is None or column is None or str(grade) not in table['grades']: return None
     return table['grades'][str(grade)]['fpb'][group][column]
 
 def rating_inputs(p,c):
     out=dict(p)
     if p.get('autoTables',True):
         for i in (1,2):
-            val=table_fpb(c['m'],c[f'd{i}'])
+            val=table_fpb(c['m'],c[f'd{i}'],p['accuracy'])
             if val is not None: out[f'fpb{i}']=val
+            else: out['_tableMissing']=True
     return out
 
 def material_pair(p):
     """Keep pinion's class, select wheel exactly two softer classes from T1."""
+    if p.get('materialMode') == 'custom':
+        return dict(p)
     index = int(p['row1'])
     if not 2 <= index < len(MATERIALS):
         raise ValueError('Для правила двух строк класс шестерни должен быть не ниже У440')
@@ -52,11 +56,14 @@ def material_pair(p):
         for key,value in {'row':row,'rowName':name,'hb':None,'sigmaH':h,'sigmaF':ff,'NHG':nhg,'sigmaHmax':hmax,'sigmaFmax':fmax}.items():
             if key!='hb': p[key+str(i)] = value
         p[f'hb{i}min'], p[f'hb{i}max'] = lo,hi
+        p[f'yield{i}'] = int(name[1:])
     p['materialSource']=f"Т1 семинара; шестерня {p['rowName1']}, колесо {p['rowName2']} на две строки мягче по правилу пользователя"
     return p
 
 def validate(p):
     errors=[]
+    if 'gost' in p and not isinstance(p['gost'],dict):
+        return ['gost: требуется объект JSON']
     unknown=set(p)-set(DEFAULTS)-{'gost'}
     if unknown:
         return ['Неподдерживаемые параметры проекта: '+', '.join(sorted(map(str,unknown)))]
@@ -70,6 +77,17 @@ def validate(p):
         elif not isinstance(value,str) or len(value)>1000: errors.append(f'{key}: некорректный текст')
     if errors: return errors
     if p['gearType'] not in ('spur','helical','herringbone'): errors.append('Неизвестный тип передачи')
+    if p['accuracy'] not in (6,7,8,9): errors.append('Точность по Т7: 6, 7, 8 или 9')
+    if p['loadRegime'] not in (*REGIMES, 'manual'): errors.append('Режим нагрузки: 0–V или ручной')
+    if p['loadRegime'] != 'manual' and p['mF'] not in (6,9): errors.append('Для табл.35 qF должен быть 6 или 9')
+    if p['loadDirection'] not in ('manual','oneway','reversing'): errors.append('Неизвестный тип нагрузки')
+    if p['loadDirection'] == 'reversing' and (p['treatment1'] != 'У' or p['treatment2'] != 'У'): errors.append('Автоматический реверс реализован для У / У')
+    if p['materialMode'] not in ('table','custom'): errors.append('Неизвестный способ задания материала')
+    if p['faceMode'] not in ('manual','seminar','formula'): errors.append('Неизвестный способ определения KHβ/KFβ')
+    if p['torqueSide'] not in ('input','opposite'): errors.append('Неизвестный торец концентрации нагрузки')
+    if any(not isinstance(p[k],int) or p[k] not in range(4) for k in ('driverClass','machineClass')): errors.append('Неравномерность: целый класс 0–3')
+    if p['autoSurface'] and (p['treatment1'] != 'У' or p['treatment2'] != 'У'): errors.append('Т4: автоматическая шероховатость реализована для У / У')
+    if p['faceMode'] == 'formula' and (p['faceHV'] <= 0 or p['gearType'] == 'herringbone'): errors.append('Формула KHβ: задайте HV; для шеврона используйте Т5 или ручной коэффициент')
     positive=['power','speed','ratio','efficiency','life','KA','startup','psiBd','KHbeta','KFbeta','muH','muF','mH','mF','NFG','SH','SF','sigmaH1','sigmaH2','sigmaF1','sigmaF2','NHG1','NHG2','ZR','ZVZL','YR','YA','YzSmall','YzLarge']
     errors += [f'{key}: должно быть больше нуля' for key in positive if p[key]<=0]
     if not 1<p['ratio']<=20: errors.append('Передаточное число: 1 < u ≤ 20')
@@ -97,6 +115,11 @@ def calculate(p, compare=False):
         return value
     def check(title,ok,detail):
         checks.append(dict(title=title,status=ok if isinstance(ok,str) else 'pass' if ok else 'fail',detail=detail))
+    p, coefficient_audit = prepare(p)
+    for item in coefficient_audit:
+        step('0. Автоматический выбор коэффициентов',item['title'],item['formula'],item['substitution'],item['value'],item['unit'],item['source'])
+    if p['materialMode'] == 'custom':
+        p['gost']={**p.get('gost',{}),'yield1':p['yield1'],'yield2':p['yield2']}
     u=p['ratio']; speed=p['speed']; ka=p['KA']
     kind=p['gearType']; spur=kind=='spur'; chevron=kind=='herringbone'
     design_ka=490 if spur else 430; design_km=4 if spur else 2.5
@@ -187,7 +210,7 @@ def calculate(p, compare=False):
         variant['contactMargin']=trial.get('marginH')
         variant['bendingMargin']=min(trial['marginF']) if trial.get('marginF') else None
     check('Твёрдость шестерни выше твёрдости колеса',p['hb1min']>p['hb2min'] and p['hb1max']>p['hb2max'],f"Шестерня {p['hb1min']}–{p['hb1max']} HB; колесо {p['hb2min']}–{p['hb2max']} HB. Сравниваются заданные диапазоны; они могут пересекаться.")
-    if p['treatment1']==p['treatment2']=='У': check('Колесо на две строки мягче при У / У',p['row1']==p['row2']+2,f"Класс шестерни {p['rowName1']}; колеса {p['rowName2']}. Правило пользователя, 29.10.2026.")
+    if p['treatment1']==p['treatment2']=='У': check('Колесо на две строки мягче при У / У',p['row1']==p['row2']+2 if p['materialMode']=='table' else 'pending',f"Класс шестерни {p['rowName1']}; колеса {p['rowName2']}. Для пользовательских свойств привязка к двум строкам таблицы не подтверждена.")
     check('Строки материалов',True if p['materialConfirmed'] else 'pending',p['materialSource'])
     check('Диапазоны коэффициентов',1<=khv<=2 and 1<=kfv<=2 and 1<=kha<=2 and 1<=kfa<=1.6,f'KHv = {f(khv)}, KFv = {f(kfv)}, KHα = {f(kha)}, KFα = {f(kfa)}. Ограничение KFα показано отдельным шагом.')
     check('Межосевое расстояние',a>=ac,f'aw = {f(a)} мм ≥ aрасч = {f(ac)} мм')
@@ -234,13 +257,14 @@ def calculate(p, compare=False):
         check('Взаимная простота',math.gcd(c['z1'],c['z2'])==1,f"НОД({c['z1']}; {c['z2']}) = 1; НОК = {c['z1']*c['z2']}")
         if not spur: check('Осевое перекрытие',c['epsilonBeta']>=1-1e-10,f"εβ = bактив sin β / (π mn) = {f(c['epsilonBeta'])} ≥ 1; для шеврона bактив = bw/2")
         check('Предварительный контроль подрезания',c['zv1']>=2/math.sin(math.radians(p['alpha']))**2,f"zv₁ = {f(c['zv1'])}; предел стандартной рейки x = 0: {f(2/math.sin(math.radians(p['alpha']))**2)}")
-        table_ok=all(table_fpb(c['m'],c[f'd{i}']) is not None for i in (1,2)) and c['v']<=(12 if spur else 20)
+        grade=str(p['accuracy']); vmax=TABLES['T7']['grades'][grade]['vmaxSpur' if spur else 'vmaxHelical']
+        table_ok=all(table_fpb(c['m'],c[f'd{i}'],p['accuracy']) is not None for i in (1,2)) and c['v']<=vmax
         rp=rating_inputs(p,c)
-        check('Применимость Т7 для точности 7',table_ok,f"Т7 для выбранных mn и d: fpb₁ = {rp['fpb1']} мкм, fpb₂ = {rp['fpb2']} мкм. Предельная скорость {12 if spur else 20} м/с.")
+        check(f"Применимость Т7 для точности {p['accuracy']}",table_ok,f"Т7 для выбранных mn и d: fpb₁ = {rp['fpb1']} мкм, fpb₂ = {rp['fpb2']} мкм. Предельная скорость {vmax} м/с. За границей таблицы автоматическая проверка прочности не выполняется.")
         check('Табличные коэффициенты нагрузки',True if p['factorsConfirmed'] and table_ok and p['psiBd']==.6 and c['m']<=3.5 else 'pending','Т5 исходного варианта: оба колеса консольно, выходной вал на шарикоподшипниках; ψbd = 0,6. При изменении ширины или модульной группы требуется повторный выбор проектировочных факторов.')
         rating=normative_rating(rp,c,b,T,step,check)
     status='fail' if any(c['status']=='fail' for c in checks) else 'pending' if any(c['status']=='pending' for c in checks) else 'pass'
-    out=dict(errors=[],input=p,trace=trace,checks=checks,status=status,variants=variants,recommended=recommended,chosen=chosen,T=T,hp=hp,fp=fp,HP=HP,FP=FP,psi=psi,ap=ap,ac=ac,a=a,b=b,mmin=mmin,mmax=mmax,khv=khv,kfv=kfv,kha=kha,kfa=kfa,rating=rating)
+    out=dict(errors=[],input=p,trace=trace,checks=checks,status=status,variants=variants,recommended=recommended,chosen=chosen,T=T,hp=hp,fp=fp,HP=HP,FP=FP,psi=psi,ap=ap,ac=ac,a=a,b=b,mmin=mmin,mmax=mmax,khv=khv,kfv=kfv,kha=kha,kfa=kfa,rating=rating,coefficientAudit=coefficient_audit)
     if compare and chosen:
         centers=[r10(ac),r10(r10(ac)+.01),r10(r10(r10(ac)+.01)+.01)]
         out['sizeComparison']=[]

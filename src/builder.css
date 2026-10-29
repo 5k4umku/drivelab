@@ -400,3 +400,37 @@
     font-size: 12px;
   }
 }
+
+.coefficient-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+}
+.coefficient-item {
+  border: 1px solid var(--line, #dce4e1);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  padding: 14px;
+  min-width: 0;
+}
+.coefficient-item summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.coefficient-item summary b {
+  color: #13765d;
+  font-variant-numeric: tabular-nums;
+}
+.coefficient-item p,
+.coefficient-item small {
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.automatic-field {
+  background: #eaf2ee;
+  color: #36705b;
+}

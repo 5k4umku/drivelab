@@ -8,6 +8,7 @@ import copy
 import json
 import math
 from engine import DEFAULTS, calculate, f
+from coefficients import layout_case, t5_factor, T5_NAMES
 
 LAYOUTS = ('centered', 'offset', 'overhung-left', 'overhung-right', 'manual')
 
@@ -111,7 +112,7 @@ def beam_reactions(loads, z_a, z_b, locating='A'):
                 diagram=diagram, maxBending=max(q['M'] for q in diagram))
 
 
-def calculate_assembly(project, active_index=0):
+def calculate_assembly(project, active_index=0, _iteration=0):
     errors = validate_project(project)
     if errors: return dict(errors=errors, stages=[], shafts=[], checks=[])
     project = copy.deepcopy(project)
@@ -185,6 +186,29 @@ def calculate_assembly(project, active_index=0):
             overlap = [name for name, z in [('A', za), ('B', zb)] if abs(z-g['z']) < (g['width']+bearing_width)/2]
             check(f"Вал {i+1}, ступень {g['stage']+1}: опоры вне венца", not overlap,
                   'Пересечение условных габаритов опор: '+', '.join(overlap) if overlap else 'Условные опоры не пересекают венец по оси Z.')
+    # Т5 зависит от фактической компоновки. Пересчитываем геометрию после
+    # выбора коэффициента; ручные опоры при этом остаются на своих местах.
+    updated = False
+    for i, stage in enumerate(stages):
+        inp = stage['result']['input']
+        if inp.get('faceMode') != 'seminar': continue
+        case = layout_case(stage['axial'], shafts[i:i+2], stage['result']['chosen']['Fa'])
+        tab = t5_factor(inp['psiBd'], case) if inp['treatment1'] == inp['treatment2'] == 'У' else None
+        if tab is None:
+            return dict(errors=[f'Ступень {i+1}: Т5 не задаёт коэффициент для «{T5_NAMES[case]}», ψbd={f(inp["psiBd"])}. Измените ширину либо задайте коэффициенты по обоснованной методике.'], stages=[], shafts=[], checks=[])
+        value = tab['value']
+        stage['faceSelection'] = dict(case=case, label=T5_NAMES[case], **tab)
+        if any(abs(inp[k]-value)>1e-9 for k in ('KHbeta','KFbeta')):
+            project['stages'][i]['input'].update(KHbeta=value,KFbeta=value,factorsConfirmed=False)
+            updated = True
+        source = 'Т5 семинара, У / У; линейная интерполяция соседних строк'
+        detail = f"{T5_NAMES[case]}; ψbd={f(inp['psiBd'])}; строки {f(tab['lower'])}…{f(tab['upper'])}; KHβ≈KFβ={f(value)}."
+        stage['result']['trace'].insert(0,dict(section='0. Автоматический выбор коэффициентов',title='KHβ≈KFβ по компоновке',formula='K=K₀+(K₁−K₀)(ψ−ψ₀)/(ψ₁−ψ₀)',substitution=detail,value=value,unit='',source=source))
+        check(f'Ступень {i+1}: выбор Т5', 'pending', detail+' Учебное приближение; не заменяет расчёт перекоса по ГОСТ.')
+    if updated:
+        if _iteration >= 8:
+            return dict(errors=['Выбор Т5 и компоновки не сошёлся за 9 пересчётов. Зафиксируйте опоры или задайте коэффициенты вручную.'], stages=[], shafts=[], checks=[])
+        return calculate_assembly(project, active_index, _iteration+1)
     collisions = []
     for index, a in enumerate(gears):
         for b in gears[index+1:]:
