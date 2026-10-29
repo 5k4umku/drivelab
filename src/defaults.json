@@ -85,5 +85,12 @@
   "torqueSide": "input",
   "materialMode": "table",
   "yield1": 785,
-  "yield2": 685
+  "yield2": 685,
+  "meshType": "external",
+  "manualModule": 2,
+  "manualZ1": 20,
+  "manualZ2": 60,
+  "manualWidth": 30,
+  "manualBeta": 15,
+  "ringRim": 10
 }

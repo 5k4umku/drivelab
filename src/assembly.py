@@ -9,6 +9,7 @@ import json
 import math
 from engine import DEFAULTS, calculate, f
 from coefficients import layout_case, t5_factor, T5_NAMES
+from motor import resolve_motor
 
 LAYOUTS = ('centered', 'offset', 'overhung-left', 'overhung-right', 'manual')
 
@@ -33,8 +34,13 @@ def validate_project(p):
     if not isinstance(p, dict):
         return ['Проект редуктора должен быть объектом JSON.']
     errors = []
-    if set(p) - {'name', 'power', 'speed', 'ratioTolerance', 'stages', 'shafts'}:
+    if set(p) - {'name', 'power', 'speed', 'ratioTolerance', 'stages', 'shafts', 'motor', 'housing'}:
         errors.append('Проект содержит неизвестные поля.')
+    try: resolve_motor(p.get('motor'))
+    except ValueError as error: errors.append(str(error))
+    housing=p.get('housing',dict(mode='contour',clearance=20))
+    if not isinstance(housing,dict) or housing.get('mode') not in ('contour','transparent','hidden') or not finite(housing.get('clearance')) or not 5 <= housing['clearance'] <= 200:
+        errors.append('Корпус: выберите контур, прозрачный или скрытый; зазор 5…200 мм.')
     if not isinstance(p.get('name'), str) or len(p['name']) > 150:
         errors.append('Название проекта: не более 150 символов.')
     if not finite(p.get('ratioTolerance', 1)) or not 0 <= p.get('ratioTolerance', 1) <= 100:
@@ -116,13 +122,17 @@ def calculate_assembly(project, active_index=0, _iteration=0):
     errors = validate_project(project)
     if errors: return dict(errors=errors, stages=[], shafts=[], checks=[])
     project = copy.deepcopy(project)
+    motor = resolve_motor(project.get('motor'))
     stages, shafts, gears, checks, trace = [], [], [], [], []
     power, speed, ratio, efficiency = project['power'], project['speed'], 1.0, 1.0
     axis = [0.0, 0.0]
     axes = [axis]
     previous_z, previous_width = 0, 0
+    signs = 1
     for i, item in enumerate(project['stages']):
         inp = {**DEFAULTS, **item['input'], 'power': power, 'speed': speed}
+        if motor:
+            inp['startup'] = motor['startingTorque']/(9550*project['power']/project['speed'])
         inp['title'] = f"{project['name']} · ступень {i+1}"
         try:
             r = calculate(inp, compare=i == active_index)
@@ -138,21 +148,25 @@ def calculate_assembly(project, active_index=0, _iteration=0):
         next_axis = [axis[k] + c['a']*direction[k] for k in range(2)]
         z = item['axial'] if item['axial'] is not None else (previous_z + (previous_width+r['b'])/2 + 20 if i else 0)
         r['assemblyContext'] = dict(stage=i+1, angle=item['angle'], axial=z, hand=item['hand'])
-        signs = 1 if i % 2 == 0 else -1
+        internal = inp['meshType'] == 'internal'
+        contact_sign = -1 if internal else 1
         hand = 1 if item['hand'] == 'right' else -1
-        force = [signs*c['Ft']*direction[1] - c['Fr']*direction[0],
-                 -signs*c['Ft']*direction[0] - c['Fr']*direction[1], signs*hand*c['Fa']]
+        force = [contact_sign*(signs*c['Ft']*direction[1] - c['Fr']*direction[0]),
+                 contact_sign*(-signs*c['Ft']*direction[0] - c['Fr']*direction[1]), signs*hand*c['Fa']]
         for side in (1, 2):
             center = axis if side == 1 else next_axis
             pitch = c[f'd{side}']/2
             gears.append(dict(stage=i, shaft=i+side-1, side=side, x=center[0], y=center[1], z=z,
-                              width=r['b'], radius=c[f'da{side}']/2, rootRadius=c[f'df{side}']/2,
+                              width=r['b'], radius=(c['outerDiameter'] if internal and side == 2 else c[f'da{side}'])/2, rootRadius=c[f'df{side}']/2,
+                              innerRadius=c['da2']/2 if internal and side == 2 else 0,
                               pitchRadius=pitch, force=force if side == 1 else [-v for v in force],
-                              offset=[(1 if side == 1 else -1)*pitch*v for v in direction]))
+                              offset=[(contact_sign if side == 1 else -1)*pitch*v for v in direction]))
         ratio *= c['u']; efficiency *= inp['efficiency']
         stages.append(dict(index=i, result=r, angle=item['angle'], axial=z, hand=item['hand'],
                            inputPower=power, outputPower=power*inp['efficiency'], inputSpeed=speed,
-                           outputSpeed=c['n2'], totalRatio=ratio, signedInputSpeed=signs*speed))
+                           outputSpeed=c['n2'], totalRatio=ratio, signedInputSpeed=signs*speed,
+                           signedOutputSpeed=signs*(1 if internal else -1)*c['n2']))
+        signs *= 1 if internal else -1
         trace.append(dict(title=f'Ступень {i+1}: передача мощности и частоты',
                           formula='Pвыход = Pвход η; nвыход = nвход / uф',
                           detail=f"{f(power)} × {f(inp['efficiency'])} = {f(power*inp['efficiency'])} кВт; {f(speed)} / {f(c['u'])} = {f(c['n2'])} мин⁻¹"))
@@ -161,6 +175,13 @@ def calculate_assembly(project, active_index=0, _iteration=0):
         previous_z, previous_width = z, r['b']
     def check(title, status, detail):
         checks.append(dict(title=title, status=status if isinstance(status, str) else 'pass' if status else 'fail', detail=detail))
+    if motor:
+        check('Мощность выбранного двигателя',project['power'] <= motor['power'],
+              f"{motor['name']}: номинальная механическая мощность {f(motor['power'])} кВт; нагрузка на входе {f(project['power'])} кВт. Режим двигателя проверяется отдельно.")
+        check('Частота при прямом соединении двигателя',abs(project['speed']-motor['speed'])<1e-6,
+              f"Каталог: {f(motor['speed'])} мин⁻¹; вход редуктора: {f(project['speed'])} мин⁻¹. Для преобразователя частоты задайте фактические паспортные данные своим двигателем.")
+        trace.append(dict(title='Двигатель и пусковой момент',formula='Tном=9550 Pном/nном; Tпуск=Kп Tном',
+            detail=f"{motor['name']}, {motor['manufacturer']}: Tном={f(motor['nominalTorque'])} Н·м; Tпуск={f(motor['startingTorque'])} Н·м. КПД двигателя {f(motor['efficiency'])} не вычитается из механической мощности повторно. Источник: {motor['source']}"))
     for i, config in enumerate(project['shafts']):
         own = [g for g in gears if g['shaft'] == i]
         za, zb = support_positions(config, own)
@@ -174,15 +195,15 @@ def calculate_assembly(project, active_index=0, _iteration=0):
         shafts.append(dict(index=i, x=axes[i][0], y=axes[i][1], diameter=config['diameter'],
                            zMin=lo, zMax=hi, bearingWidth=bearing_width, bearing=config['bearing'],
                            locating=config['locating'], layout=config['layout'], speed=shaft_speed,
-                           signedSpeed=(-1 if i % 2 else 1)*shaft_speed, power=shaft_power,
+                           signedSpeed=shaft_speed if i == 0 else stages[i-1]['signedOutputSpeed'], power=shaft_power,
                            torque=9550*shaft_power/shaft_speed, loads=loads, **statics))
         check(f'Вал {i+1}: равновесие сил и изгибающих моментов',
               max(map(abs, statics['forceResidual']+statics['momentResidual'])) < 1e-6,
               f"ΣF ≤ {f(max(map(abs,statics['forceResidual'])),9)} Н; ΣMxy ≤ {f(max(map(abs,statics['momentResidual'])),9)} Н·мм.")
         for g in own:
             check(f"Вал {i+1}, ступень {g['stage']+1}: посадка колеса",
-                  config['diameter'] < 2*g['rootRadius'],
-                  f"Диаметр вала {f(config['diameter'])} мм; диаметр впадин {f(2*g['rootRadius'])} мм. Толщина обода и шпонка требуют отдельного расчёта.")
+                  'pending' if g['innerRadius'] else config['diameter'] < 2*g['rootRadius'],
+                  'Соединение внутреннего обода с валом: диск, ступица и крепление требуют отдельного конструирования.' if g['innerRadius'] else f"Диаметр вала {f(config['diameter'])} мм; диаметр впадин {f(2*g['rootRadius'])} мм. Толщина обода и шпонка требуют отдельного расчёта.")
             overlap = [name for name, z in [('A', za), ('B', zb)] if abs(z-g['z']) < (g['width']+bearing_width)/2]
             check(f"Вал {i+1}, ступень {g['stage']+1}: опоры вне венца", not overlap,
                   'Пересечение условных габаритов опор: '+', '.join(overlap) if overlap else 'Условные опоры не пересекают венец по оси Z.')
@@ -191,7 +212,7 @@ def calculate_assembly(project, active_index=0, _iteration=0):
     updated = False
     for i, stage in enumerate(stages):
         inp = stage['result']['input']
-        if inp.get('faceMode') != 'seminar': continue
+        if inp.get('faceMode') != 'seminar' or inp['meshType'] == 'internal': continue
         case = layout_case(stage['axial'], shafts[i:i+2], stage['result']['chosen']['Fa'])
         tab = t5_factor(inp['psiBd'], case) if inp['treatment1'] == inp['treatment2'] == 'У' else None
         if tab is None:
@@ -213,10 +234,13 @@ def calculate_assembly(project, active_index=0, _iteration=0):
     for index, a in enumerate(gears):
         for b in gears[index+1:]:
             if a['stage'] == b['stage']: continue  # Предусмотренное зацепление.
+            distance = math.hypot(a['x']-b['x'],a['y']-b['y'])
+            if distance+b['radius'] < a['innerRadius'] or distance+a['radius'] < b['innerRadius']: continue
             if abs(a['z']-b['z']) < (a['width']+b['width'])/2 - 1e-8 and math.hypot(a['x']-b['x'], a['y']-b['y']) < a['radius']+b['radius']-1e-8:
                 collisions.append(f"венцы ступеней {a['stage']+1} и {b['stage']+1}")
         for s in shafts:
             if s['index'] == a['shaft']: continue
+            if math.hypot(a['x']-s['x'],a['y']-s['y'])+s['diameter']/2 < a['innerRadius']: continue
             # У сопряжённого колеса вал тоже может задевать зубья партнёра.
             if min(s['zMax'], a['z']+a['width']/2) > max(s['zMin'], a['z']-a['width']/2) and math.hypot(a['x']-s['x'], a['y']-s['y']) < a['radius']+s['diameter']/2-1e-8:
                 collisions.append(f"венец ступени {a['stage']+1} и вал {s['index']+1}")
@@ -232,7 +256,7 @@ def calculate_assembly(project, active_index=0, _iteration=0):
     check('Прочность валов и ресурс подшипников', 'pending',
           'Выполнена статическая схема двух опор. Номера подшипников, концентрация напряжений, усталость, прогибы, масса деталей и внешние нагрузки на концы валов в эту модель не входят.')
     check('Область конструктора', 'pending',
-          'Последовательные внешние цилиндрические зацепления на параллельных валах, x₁ = x₂ = 0. Внутреннее зацепление, разветвление потока мощности и упругие многоопорные валы требуют других моделей.')
+          'Последовательные цилиндрические зацепления на параллельных валах, x₁ = x₂ = 0. Для внутренней пары доступны заданная геометрия и кинематика; прочность и полная интерференция не подтверждены. Разветвление мощности и упругие многоопорные валы требуют других моделей.')
     check('Баланс мощности', abs(power-project['power']*efficiency) < 1e-8,
           f"Pвыход = {f(power)} кВт; потери = {f(project['power']-power)} кВт; ηΣ = {f(efficiency)}.")
     target_ratio = math.prod(s['result']['input']['ratio'] for s in stages)
@@ -243,7 +267,7 @@ def calculate_assembly(project, active_index=0, _iteration=0):
                min(g['y']-g['radius'] for g in gears), max(g['y']+g['radius'] for g in gears),
                min(s['zMin'] for s in shafts), max(s['zMax'] for s in shafts)]
     statuses = [c['status'] for c in checks] + [s['result']['status'] for s in stages]
-    return dict(errors=[], project=project, stages=stages, shafts=shafts, gears=gears,
+    return dict(errors=[], project=project, stages=stages, shafts=shafts, gears=gears, motor=motor,
                 checks=checks, trace=trace, collisions=collisions, bounds=extrema,
                 totalRatio=ratio, targetRatio=target_ratio, ratioError=ratio_error, efficiency=efficiency, outputPower=power, outputSpeed=speed,
                 outputTorque=9550*power/speed, lostPower=project['power']-power,
