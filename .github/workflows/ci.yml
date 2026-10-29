@@ -1,0 +1,53 @@
+name: Инженерные проверки и демоверсия
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Расчёт, тесты и сборка
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Проверить расчётное ядро
+        run: python -m unittest discover -s tests -v
+      - name: Загрузить библиотеки с проверкой SHA-256
+        run: python scripts/fetch-vendor.py
+      - name: Воспроизвести инженерные примеры
+        run: python scripts/examples.py
+      - name: Сравнить Python и WebAssembly
+        run: node scripts/test-wasm.mjs
+      - name: Собрать браузерное приложение
+        run: node scripts/build.mjs
+      - name: Подготовить демоверсию
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+  deploy:
+    name: Публикация сайта
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Опубликовать проверенную демоверсию
+        id: deployment
+        uses: actions/deploy-pages@v4
