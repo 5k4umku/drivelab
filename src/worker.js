@@ -11,6 +11,9 @@ const ready = (async () => {
     "defaults.json",
     "rating.py",
     "coefficients.py",
+    "motor.py",
+    "internal.py",
+    "motors.json",
     "seminar_tables.json",
     "assembly.py",
   ]) {

@@ -8,8 +8,9 @@ import math
 from pathlib import Path
 from rating import normative_rating
 from coefficients import prepare, REGIMES
+from internal import calculate_internal
 
-VERSION = '0.2.1'
+VERSION = '0.3.0'
 DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
 TABLES = json.loads(Path(__file__).with_name('seminar_tables.json').read_text(encoding='utf-8'))
 MATERIALS = [
@@ -77,6 +78,11 @@ def validate(p):
         elif not isinstance(value,str) or len(value)>1000: errors.append(f'{key}: некорректный текст')
     if errors: return errors
     if p['gearType'] not in ('spur','helical','herringbone'): errors.append('Неизвестный тип передачи')
+    if p['meshType'] not in ('external','internal'): errors.append('Неизвестный вид зацепления')
+    if p['meshType'] == 'internal':
+        if not .1 <= p['manualModule'] <= 50 or not 1 <= p['manualWidth'] <= 2000 or not 1 <= p['ringRim'] <= 500: errors.append('Внутренняя пара: mn=0,1…50 мм, b=1…2000 мм, обод=1…500 мм')
+        if any(p[k] != int(p[k]) or not 12 <= p[k] <= 1000 for k in ('manualZ1','manualZ2')) or p['manualZ2'] <= p['manualZ1']: errors.append('Внутренняя пара: целые 12 ≤ z₁ < z₂ ≤ 1000')
+        if p['gearType'] != 'spur' and not 0 < p['manualBeta'] <= 35: errors.append('Угол внутренней косозубой пары: 0 < β ≤ 35°')
     if p['accuracy'] not in (6,7,8,9): errors.append('Точность по Т7: 6, 7, 8 или 9')
     if p['loadRegime'] not in (*REGIMES, 'manual'): errors.append('Режим нагрузки: 0–V или ручной')
     if p['loadRegime'] != 'manual' and p['mF'] not in (6,9): errors.append('Для табл.35 qF должен быть 6 или 9')
@@ -87,7 +93,7 @@ def validate(p):
     if p['torqueSide'] not in ('input','opposite'): errors.append('Неизвестный торец концентрации нагрузки')
     if any(not isinstance(p[k],int) or p[k] not in range(4) for k in ('driverClass','machineClass')): errors.append('Неравномерность: целый класс 0–3')
     if p['autoSurface'] and (p['treatment1'] != 'У' or p['treatment2'] != 'У'): errors.append('Т4: автоматическая шероховатость реализована для У / У')
-    if p['faceMode'] == 'formula' and (p['faceHV'] <= 0 or p['gearType'] == 'herringbone'): errors.append('Формула KHβ: задайте HV; для шеврона используйте Т5 или ручной коэффициент')
+    if p['meshType'] == 'external' and p['faceMode'] == 'formula' and (p['faceHV'] <= 0 or p['gearType'] == 'herringbone'): errors.append('Формула KHβ: задайте HV; для шеврона используйте Т5 или ручной коэффициент')
     positive=['power','speed','ratio','efficiency','life','KA','startup','psiBd','KHbeta','KFbeta','muH','muF','mH','mF','NFG','SH','SF','sigmaH1','sigmaH2','sigmaF1','sigmaF2','NHG1','NHG2','ZR','ZVZL','YR','YA','YzSmall','YzLarge']
     errors += [f'{key}: должно быть больше нуля' for key in positive if p[key]<=0]
     if not 1<p['ratio']<=20: errors.append('Передаточное число: 1 < u ≤ 20')
@@ -109,6 +115,7 @@ def calculate(p, compare=False):
     p={**DEFAULTS,**p}
     errors=validate(p)
     if errors: return dict(errors=errors,trace=[],checks=[],variants=[])
+    if p['meshType'] == 'internal': return calculate_internal(p)
     trace,checks=[],[]
     def step(section,title,formula,sub,value,unit='',source='Семинары: бланк и таблицы Т1–Т9'):
         trace.append(dict(section=section,title=title,formula=formula,substitution=sub,value=value,unit=unit,source=source))

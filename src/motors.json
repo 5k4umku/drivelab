@@ -1,0 +1,5 @@
+[
+  {"id":"air80b4","name":"АИР80B4","manufacturer":"Omec Motors","power":1.5,"speed":1400,"efficiency":0.785,"startup":2.3,"frame":80,"frequency":50,"duty":"S1","source":"https://new.omecmotors.ru/katalog/elektrodvigateli-nizkovoltnye-gost/air/-air-1978001968"},
+  {"id":"air90l4","name":"АИР90L4","manufacturer":"Omec Motors","power":2.2,"speed":1410,"efficiency":0.8,"startup":2.3,"frame":90,"frequency":50,"duty":"S1","source":"https://new.omecmotors.ru/katalog/elektrodvigateli-nizkovoltnye-gost/air/-air-3931168508"},
+  {"id":"air100l4","name":"АИР100L4","manufacturer":"Omec Motors","power":4,"speed":1435,"efficiency":0.842,"startup":2.3,"frame":100,"frequency":50,"duty":"S1","source":"https://new.omecmotors.ru/katalog/elektrodvigateli-nizkovoltnye-gost/air/-air-5587091685"}
+]

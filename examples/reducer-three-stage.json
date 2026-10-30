@@ -1,7 +1,7 @@
 {
   "format": "DriveLab",
   "version": 2,
-  "engine": "0.2.0",
+  "engine": "0.3.0",
   "project": {
     "name": "Трёхступенчатый редуктор",
     "power": 2.2,
@@ -96,7 +96,14 @@
           "torqueSide": "input",
           "materialMode": "table",
           "yield1": 785,
-          "yield2": 685
+          "yield2": 685,
+          "meshType": "external",
+          "manualModule": 2,
+          "manualZ1": 20,
+          "manualZ2": 60,
+          "manualWidth": 30,
+          "manualBeta": 15,
+          "ringRim": 10
         },
         "angle": 0,
         "axial": null,
@@ -190,7 +197,14 @@
           "torqueSide": "input",
           "materialMode": "table",
           "yield1": 785,
-          "yield2": 685
+          "yield2": 685,
+          "meshType": "external",
+          "manualModule": 2,
+          "manualZ1": 20,
+          "manualZ2": 60,
+          "manualWidth": 30,
+          "manualBeta": 15,
+          "ringRim": 10
         },
         "angle": 30,
         "axial": null,
@@ -284,7 +298,14 @@
           "torqueSide": "input",
           "materialMode": "table",
           "yield1": 785,
-          "yield2": 685
+          "yield2": 685,
+          "meshType": "external",
+          "manualModule": 2,
+          "manualZ1": 20,
+          "manualZ2": 60,
+          "manualWidth": 30,
+          "manualBeta": 15,
+          "ringRim": 10
         },
         "angle": -30,
         "axial": null,
