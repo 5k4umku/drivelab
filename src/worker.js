@@ -8,6 +8,7 @@ const ready = (async () => {
   self.postMessage({ type: "phase", message: "Загрузка расчётной модели…" });
   for (const name of [
     "engine.py",
+    "selection.py", "automation.py", "tolerances.py",
     "defaults.json",
     "rating.py",
     "coefficients.py",
@@ -22,7 +23,7 @@ const ready = (async () => {
     runtime.FS.writeFile("/home/pyodide/" + name, await response.text());
   }
   await runtime.runPythonAsync(
-    "from engine import calculate_json, material_pair, MATERIALS\nfrom assembly import assembly_json\nimport json",
+    "from engine import calculate_json, material_pair, MATERIALS\nfrom assembly import assembly_json\nfrom automation import tools_json\nimport json",
   );
   self.postMessage({ type: "phase", message: "Расчёт исходного варианта…" });
   self.postMessage({
@@ -36,7 +37,7 @@ async function handle(data) {
     const py = await ready;
     py.globals.set("payload", JSON.stringify(data.input));
     const output = await py.runPythonAsync(
-      data.type === "material"
+      data.type === "tools" ? "tools_json(payload)" : data.type === "material"
         ? "json.dumps(material_pair(json.loads(payload)), ensure_ascii=False)"
         : data.type === "assembly"
           ? "assembly_json(payload)"

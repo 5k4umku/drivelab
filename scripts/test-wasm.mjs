@@ -10,6 +10,7 @@ const py = await loadPyodide({
 });
 for (const name of [
   "engine.py",
+    "selection.py", "automation.py", "tolerances.py",
   "rating.py",
   "coefficients.py",
   "motor.py",

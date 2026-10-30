@@ -93,5 +93,6 @@
   "manualZ2": 60,
   "manualWidth": 30,
   "manualBeta": 15,
-  "ringRim": 10
+  "ringRim": 10,
+  "selectionPolicy": "precision"
 }
