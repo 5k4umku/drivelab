@@ -327,9 +327,11 @@ export function createBuilder({
     controls,
     busy() {
       root.classList.add("builder-busy");
+      schematic.setEnabled(false);
       root.querySelector("#assembly-export").disabled = true;
     },
     error(message) {
+      schematic.setEnabled(false);
       root.classList.remove("builder-busy");
       root.classList.add("builder-invalid");
       root.querySelector("#assembly-error").hidden = false;

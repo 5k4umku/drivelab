@@ -11,6 +11,7 @@ export class SchematicEditor {
     this.selected = null;
     this.undo = [];
     this.redo = [];
+    this.enabled = false;
     root.innerHTML = `<div class="builder-section-title"><div><div class="eyebrow">КОМПОНОВКА НА ЧЕРТЕЖЕ</div><h2>Редактор схемы</h2><p>Перетащите венец или опору. Пара зацепления перемещается совместно.</p></div></div><div class="schematic-toolbar"><button data-plane="axial" class="active">Развёртка вдоль валов</button><button data-plane="front">Вид с торца · схема ступеней</button><button id="scheme-undo" aria-label="Отменить перемещение" disabled>↶</button><button id="scheme-redo" aria-label="Повторить перемещение" disabled>↷</button><button id="scheme-save">↓ Схема SVG</button></div><div class="schematic-canvas" id="scheme-canvas"></div><div id="scheme-inspector" class="scheme-inspector" aria-live="polite">Выберите элемент на схеме.</div><p class="field-note">Развёртка разносит валы по строкам: масштаб вдоль Z общий, межосевые расстояния смотрите с торца. При ручном перемещении текущие положения остальных венцов и опор фиксируются. Стрелки клавиатуры — 1 мм / 1°, Shift — 10. Корпус и подшипники обозначены условно.</p>`;
     root.querySelectorAll("[data-plane]").forEach(
       (el) =>
@@ -47,6 +48,13 @@ export class SchematicEditor {
     this.localChange = false;
     this.data = data;
     this.draw();
+    this.setEnabled(true);
+  }
+  setEnabled(enabled) {
+    this.enabled = enabled;
+    this.root.querySelector("#scheme-save").disabled = !enabled;
+    this.root.querySelector("#scheme-canvas").inert = !enabled;
+    this.root.querySelector("#scheme-inspector").inert = !enabled;
   }
   commit(p) {
     this.undo.push(structuredClone(this.getProject()));
@@ -79,7 +87,7 @@ export class SchematicEditor {
         : this.data.stages[target.index].angle;
   }
   move(target, value) {
-    if (!Number.isFinite(value)) return;
+    if (!this.enabled || !Number.isFinite(value)) return;
     const p = this.fixedProject();
     if (target.kind === "gear")
       p.stages[target.index].axial = Math.max(-100000, Math.min(100000, value));
