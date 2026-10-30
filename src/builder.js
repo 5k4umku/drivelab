@@ -90,7 +90,7 @@ export function createBuilder({
   let viewer, latest;
   const root = document.querySelector("#constructor");
   root.innerHTML = `<div class="page-heading"><div><div class="eyebrow">СВОБОДНАЯ КОМПОНОВКА</div><h1>Конструктор редуктора<span>.</span></h1><p>Ступени, валы и опоры в одной расчётной модели.</p></div><button class="outline" id="assembly-export" disabled>↓ Отчёт по редуктору</button></div>
-  <div class="builder-toolbar"><span>Начать с шаблона</span><button data-template="1">1 ступень</button><button data-template="2">2 ступени</button><button data-template="3">3 ступени</button><button data-template="seminar">Семинар №11</button></div>
+  <div class="builder-toolbar"><span>Начать с шаблона</span><button data-template="1">1 ступень</button><button data-template="2">2 ступени</button><button data-template="3">3 ступени</button><button data-template="seminar">Семинар №11</button><button data-pdm="spur">ПДМ · прямые зубья</button><button data-pdm="helical">ПДМ · косые зубья</button><button data-pdm="herringbone">ПДМ · шеврон</button></div>
   <div class="builder-global" id="builder-global"></div>
   <div id="assembly-error" class="error-banner" hidden role="alert"></div>
   <div id="assembly-metrics" class="metrics"></div>
@@ -140,6 +140,17 @@ export function createBuilder({
           );
         }
         changed(p, 0, count !== "seminar");
+      }),
+  );
+  root.querySelectorAll("[data-pdm]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        const p = projectFromInput(defaults);
+        p.name = "Схема ПДМ · " + kinds[button.dataset.pdm];
+        p.stages = [newStage(defaults)];
+        p.stages[0].input.gearType = button.dataset.pdm;
+        p.shafts = [shaftDefault(), shaftDefault()];
+        changed(p, 0);
       }),
   );
   root.querySelector("#assembly-export").onclick = onExport;

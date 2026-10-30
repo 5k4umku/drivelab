@@ -15,6 +15,7 @@
     />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="src/builder.css" />
+    <link rel="stylesheet" href="src/studio.css" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
@@ -33,22 +34,23 @@
       <p class="sidebar-note">
         От исходных данных<br />до обоснованного решения
       </p>
-      <nav aria-label="Разделы проекта">
-        <a href="#constructor"><span>00</span> Конструктор</a>
-        <a class="active" href="#overview"><span>01</span> Рабочий стол</a>
+      <nav id="project-nav" aria-label="Разделы проекта">
+        <a href="#constructor"><span>01</span> Компоновка</a>
+        <a class="active" href="#overview"><span>02</span> Ступень</a>
+        <a href="#selection"><span>03</span> Подбор и точность</a>
         <a href="#variants"
-          ><span>02</span> Варианты <b id="variant-count">—</b></a
+          ><span>04</span> Варианты <b id="variant-count">—</b></a
         >
-        <a href="#checks"><span>03</span> Проверки <b id="check-count">—</b></a>
-        <a href="#coefficients"><span>04</span> Коэффициенты</a>
-        <a href="#calculation"><span>05</span> Ход расчёта</a>
-        <a href="#method"><span>06</span> Методика</a>
+        <a href="#checks"><span>05</span> Проверки <b id="check-count">—</b></a>
+        <a href="#coefficients"><span>06</span> Коэффициенты</a>
+        <a href="#calculation"><span>07</span> Ход расчёта</a>
+        <a href="#method"><span>08</span> Методика</a>
       </nav>
       <div class="sidebar-bottom">
         <span class="engine-dot"></span
         ><span id="engine-status">Загрузка Python…</span
         ><small
-          >Все вычисления на устройстве<br />v0.2 · воспроизводимый
+          >Все вычисления на устройстве<br />v0.4 · воспроизводимый
           расчёт</small
         >
       </div>
@@ -56,24 +58,46 @@
     <div class="workspace">
       <header class="topbar">
         <div class="breadcrumbs">
-          Детали машин <span>/</span> Проект передачи
+          <button
+            id="mobile-menu"
+            aria-expanded="false"
+            aria-controls="project-nav"
+            aria-label="Открыть меню"
+          >
+            ☰
+          </button>
+          Проект <span>/</span> <b id="route-title">Компоновка</b>
         </div>
         <div class="top-actions">
-          <a class="builder-shortcut" href="#constructor">Конструктор</a>
-          <button id="save-json" class="quiet">Сохранить JSON</button
+          <label class="theme-control"
+            ><span>Тема</span
+            ><select id="theme-select" aria-label="Тема оформления">
+              <option value="system">Системная</option>
+              <option value="light">Светлая</option>
+              <option value="dark">Тёмная</option>
+            </select></label
+          >
+          <button id="save-json" class="quiet" aria-label="Сохранить JSON">
+            Сохранить JSON</button
           ><button id="import-json" class="quiet">Открыть</button
           ><input
             type="file"
             id="import-file"
             accept=".json,application/json"
             hidden
-          /><button id="export-word" class="primary" disabled>
+          /><button
+            id="export-word"
+            class="primary"
+            aria-label="Отчёт Word"
+            disabled
+          >
             ↓ Отчёт Word
           </button>
         </div>
       </header>
       <main id="main">
         <section id="constructor" class="page-section"></section>
+        <section id="selection" class="page-section" hidden></section>
         <section id="overview" class="page-section">
           <div class="page-heading">
             <div>
@@ -333,5 +357,11 @@
       </form>
     </dialog>
     <div id="toast" role="status" aria-live="polite"></div>
+    <nav class="mobile-nav" aria-label="Основные разделы">
+      <a href="#constructor">◈<span>Схема</span></a
+      ><a href="#overview">⚙<span>Ступень</span></a
+      ><a href="#selection">⌕<span>Подбор</span></a
+      ><a href="#checks">✓<span>Проверки</span></a>
+    </nav>
   </body>
 </html>

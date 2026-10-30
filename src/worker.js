@@ -8,7 +8,9 @@ const ready = (async () => {
   self.postMessage({ type: "phase", message: "Загрузка расчётной модели…" });
   for (const name of [
     "engine.py",
-    "selection.py", "automation.py", "tolerances.py",
+    "selection.py",
+    "automation.py",
+    "tolerances.py",
     "defaults.json",
     "rating.py",
     "coefficients.py",
@@ -37,11 +39,13 @@ async function handle(data) {
     const py = await ready;
     py.globals.set("payload", JSON.stringify(data.input));
     const output = await py.runPythonAsync(
-      data.type === "tools" ? "tools_json(payload)" : data.type === "material"
-        ? "json.dumps(material_pair(json.loads(payload)), ensure_ascii=False)"
-        : data.type === "assembly"
-          ? "assembly_json(payload)"
-          : "calculate_json(payload)",
+      data.type === "tools"
+        ? "tools_json(payload)"
+        : data.type === "material"
+          ? "json.dumps(material_pair(json.loads(payload)), ensure_ascii=False)"
+          : data.type === "assembly"
+            ? "assembly_json(payload)"
+            : "calculate_json(payload)",
     );
     self.postMessage({
       id: data.id,

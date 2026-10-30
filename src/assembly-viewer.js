@@ -1,3 +1,4 @@
+import { prepareSceneEffects, moveCamera } from "./scene-effects.js";
 import * as THREE from "three";
 import { GearViewer, gearGeometry } from "./viewer.js";
 
@@ -82,6 +83,11 @@ export class AssemblyViewer extends GearViewer {
         material(colors[gear.stage % colors.length]),
       );
       mesh.position.z = gear.z;
+      mesh.userData.explodeDirection = new THREE.Vector3(
+        0,
+        0,
+        (gear.side === 1 ? -1 : 1) * (gear.stage + 1) * gear.width * 2,
+      );
       mesh.rotation.z =
         (stage.angle * Math.PI) / 180 +
         (gear.side === 2
@@ -187,20 +193,22 @@ export class AssemblyViewer extends GearViewer {
     this.envelope.visible = mode !== "hidden" && (this.showEnvelope ?? true);
     this.model.add(this.envelope);
     this.view(this.viewMode || "iso");
+    prepareSceneEffects(this);
     this.resize();
   }
   view(mode) {
     this.viewMode = mode;
     const center = this.center || new THREE.Vector3(),
       s = this.extent || 450;
-    this.controls.target.copy(center);
+
     const aspect =
-      this.container.clientWidth / Math.max(1, this.container.clientHeight);
-    const distance = (s * 1.8) / Math.min(1, aspect);
+      this.container.clientWidth / Math.max(1, this.container.clientHeight) ||
+      1;
+    const distance = (s * 1.8) / Math.min(1, Math.max(0.35, aspect));
     this.camera.far = Math.max(10000, distance * 10);
     this.camera.updateProjectionMatrix();
-    this.camera.position
-      .copy(center)
+    const targetPosition = center
+      .clone()
       .add(
         mode === "front"
           ? new THREE.Vector3(0, 0, distance)
@@ -208,20 +216,23 @@ export class AssemblyViewer extends GearViewer {
               .normalize()
               .multiplyScalar(distance),
       );
+    moveCamera(this, center, targetPosition);
     this.camera.up.set(0, 1, 0);
     this.controls.update();
   }
   animate(now) {
     const dt = Math.min((now - this.last) / 1000, 0.05);
     this.last = now;
-    if (this.result && this.playing && !document.hidden) {
+    if (this.result && this.playing && !document.hidden && this.inViewport) {
       this.theta += (dt * this.scale * 2 * Math.PI) / 60;
       for (let i = 0; i < this.rotors.length; i++)
         this.rotors[i].rotation.z =
           this.theta * this.result.shafts[i].signedSpeed;
     }
+    this.tickEffects(dt);
     this.controls.update();
-    if (!document.hidden) this.renderer.render(this.scene, this.camera);
+    if (!document.hidden && this.inViewport)
+      this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this.animate);
   }
 }
