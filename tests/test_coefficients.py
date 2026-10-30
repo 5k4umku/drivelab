@@ -56,8 +56,8 @@ class TableTests(unittest.TestCase):
         self.assertEqual(r['input']['gost']['yield1'],800)
 
     def test_grade_changes_automatic_pitch_error(self):
-        a=calculate({**DEFAULTS,'accuracy':6})
-        b=calculate({**DEFAULTS,'accuracy':9})
+        a=calculate({**DEFAULTS,'accuracy':6,'speed':400})
+        b=calculate({**DEFAULTS,'accuracy':9,'speed':400})
         self.assertLess(a['rating']['KHv'],b['rating']['KHv'])
         self.assertLess(a['rating']['h'],b['rating']['h'])
 

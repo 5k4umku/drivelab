@@ -79,6 +79,7 @@
   "driverClass": 0,
   "machineClass": 1,
   "autoSurface": false,
+  "rootFinish": "cut",
   "faceMode": "manual",
   "faceDeviation": 8,
   "faceHV": 300,

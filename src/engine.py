@@ -38,6 +38,9 @@ def table_fpb(module, diameter, grade=7):
 def rating_inputs(p,c):
     out=dict(p)
     if p.get('autoTables',True):
+        grade = TABLES['T7']['grades'][str(p['accuracy'])]
+        limit = grade['vmaxSpur' if p['gearType']=='spur' else 'vmaxHelical']
+        if c['v'] > limit: out['_tableMissing']=True
         for i in (1,2):
             val=table_fpb(c['m'],c[f'd{i}'],p['accuracy'])
             if val is not None: out[f'fpb{i}']=val
@@ -89,6 +92,7 @@ def validate(p):
     if p['loadDirection'] not in ('manual','oneway','reversing'): errors.append('Неизвестный тип нагрузки')
     if p['loadDirection'] == 'reversing' and (p['treatment1'] != 'У' or p['treatment2'] != 'У'): errors.append('Автоматический реверс реализован для У / У')
     if p['materialMode'] not in ('table','custom'): errors.append('Неизвестный способ задания материала')
+    if p['rootFinish'] not in ('cut','polished'): errors.append('Обработка корня: нарезание/шлифование или полирование')
     if p['faceMode'] not in ('manual','seminar','formula'): errors.append('Неизвестный способ определения KHβ/KFβ')
     if p['torqueSide'] not in ('input','opposite'): errors.append('Неизвестный торец концентрации нагрузки')
     if any(not isinstance(p[k],int) or p[k] not in range(4) for k in ('driverClass','machineClass')): errors.append('Неравномерность: целый класс 0–3')
@@ -115,6 +119,11 @@ def calculate(p, compare=False):
     p={**DEFAULTS,**p}
     errors=validate(p)
     if errors: return dict(errors=errors,trace=[],checks=[],variants=[])
+    # Т1 — источник свойств, а не только подпись. JSON не должен подменять
+    # прочность в табличном режиме; для своих значений есть materialMode=custom.
+    if p['materialMode']=='table':
+        try: p=material_pair(p)
+        except ValueError as error: return dict(errors=[str(error)],trace=[],checks=[],variants=[])
     if p['meshType'] == 'internal': return calculate_internal(p)
     trace,checks=[],[]
     def step(section,title,formula,sub,value,unit='',source='Семинары: бланк и таблицы Т1–Т9'):
@@ -279,7 +288,7 @@ def calculate(p, compare=False):
             other=calculate({**p,'aOverride':center,'selectedModule':0})
             oc=other.get('chosen'); rt=other.get('rating') or {}
             if oc:
-                out['sizeComparison'].append(dict(a=center,b=other['b'],m=oc['m'],z1=oc['z1'],z2=oc['z2'],contactMargin=rt.get('marginH'),stress=rt.get('h'),allowable=rt.get('hAllow'),tablesValid=all(table_fpb(oc['m'],oc[f'd{i}']) is not None for i in (1,2)),status=other['status']))
+                out['sizeComparison'].append(dict(a=center,b=other['b'],m=oc['m'],z1=oc['z1'],z2=oc['z2'],contactMargin=rt.get('marginH'),stress=rt.get('h'),allowable=rt.get('hAllow'),tablesValid=not rating_inputs(p,oc).get('_tableMissing',False),status=other['status']))
     return out
 
 def calculate_json(payload):
