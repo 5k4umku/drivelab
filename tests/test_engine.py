@@ -10,7 +10,7 @@ from engine import calculate,DEFAULTS,material_pair,r10
 
 class SeminarRegression(unittest.TestCase):
     def test_recovered_historical_equal_hardness_arithmetic(self):
-        p={**DEFAULTS,'sigmaH2':690,'sigmaF2':550,'NHG2':29,'hb2min':293,'hb2max':331}
+        p={**DEFAULTS,'materialMode':'custom','sigmaH2':690,'sigmaF2':550,'NHG2':29,'hb2min':293,'hb2max':331}
         r=calculate(p)
         # Independently recalculated decimal reference from the original seminar.
         self.assertAlmostEqual(r['T'],14.900709219858156,11)

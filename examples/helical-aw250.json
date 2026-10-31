@@ -1,7 +1,7 @@
 {
   "format": "DriveLab",
   "version": 1,
-  "engine": "0.3.0",
+  "engine": "0.4.0",
   "input": {
     "title": "Косозубая передача 11–01–2–2–3",
     "power": 2.2,
@@ -83,6 +83,7 @@
     "driverClass": 0,
     "machineClass": 1,
     "autoSurface": false,
+    "rootFinish": "cut",
     "faceMode": "manual",
     "faceDeviation": 8,
     "faceHV": 300,
@@ -96,6 +97,7 @@
     "manualZ2": 60,
     "manualWidth": 30,
     "manualBeta": 15,
-    "ringRim": 10
+    "ringRim": 10,
+    "selectionPolicy": "precision"
   }
 }

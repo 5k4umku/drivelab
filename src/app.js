@@ -2,6 +2,11 @@ import { fmt, escapeHTML as e, statusLabel } from "./format.js";
 import { GearViewer } from "./viewer.js";
 import { createBuilder, projectFromInput } from "./builder.js";
 import { settingsFields, bindSettings, coefficientPanel } from "./settings.js";
+import { setupShell } from "./shell.js";
+import { createWorkbench } from "./workbench.js";
+let workbench;
+const toolCalls = new Map();
+let toolSequence = -1;
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
 const defaults = await fetch("src/defaults.json").then((r) => r.json());
@@ -84,6 +89,13 @@ function showError(message) {
 const worker = new Worker(new URL("./worker.js", import.meta.url));
 worker.onerror = (err) => showError(`Ошибка расчётного ядра: ${err.message}`);
 worker.onmessage = ({ data }) => {
+  if (toolCalls.has(data.id)) {
+    const call = toolCalls.get(data.id);
+    toolCalls.delete(data.id);
+    if (data.type === "error") call.reject(new Error(data.message));
+    else call.resolve(data.result);
+    return;
+  }
   if (data.type === "phase") {
     $("#engine-status").textContent = data.message;
     return;
@@ -124,8 +136,10 @@ worker.onmessage = ({ data }) => {
   }
   render();
   builder.render(assembly);
+  workbench?.update(result);
 };
 function run(type = "calculate") {
+  workbench?.invalidate();
   lastId = ++sequence;
   document.body.classList.add("recalculating");
   $("#export-word").disabled = true;
@@ -198,7 +212,9 @@ function render() {
       inputs.meshType === "internal"
         ? "Внутреннее зацепление: номинальная геометрия по ГОСТ 19274–73."
         : c.m === r.recommended?.m
-          ? "Минимальная ошибка передаточного числа среди найденных пар."
+          ? inputs.selectionPolicy === "zubil"
+            ? "Максимальный НОК среди найденных пар в допуске; прочность проверяется отдельно."
+            : "Минимальная ошибка передаточного числа среди найденных пар."
           : "Выбран вручную для сравнения с рекомендацией.";
     $("#design-values").innerHTML = [
       ["Передаточное число", fmt(c.u, 6)],
@@ -454,7 +470,7 @@ $("#save-json").onclick = () =>
     new Blob(
       [
         JSON.stringify(
-          { format: "DriveLab", version: 2, engine: "0.3.0", project },
+          { format: "DriveLab", version: 2, engine: "0.4.0", project },
           null,
           2,
         ),
@@ -540,17 +556,6 @@ $("#toggle-lines").onclick = () => {
     $("#toggle-lines").classList.toggle("active", viewer.lines.visible);
   }
 };
-const observer = new IntersectionObserver(
-  (entries) => {
-    for (const entry of entries)
-      if (entry.isIntersecting)
-        $$("nav a").forEach((el) =>
-          el.classList.toggle("active", el.hash === "#" + entry.target.id),
-        );
-  },
-  { rootMargin: "-10% 0px -70% 0px" },
-);
-$$(".page-section").forEach((el) => observer.observe(el));
 builder = createBuilder({
   defaults,
   getProject: () => project,
@@ -587,4 +592,28 @@ builder = createBuilder({
   },
 });
 builder.controls();
+workbench = createWorkbench({
+  request: (input) =>
+    new Promise((resolve, reject) => {
+      const id = toolSequence--;
+      toolCalls.set(id, { resolve, reject });
+      worker.postMessage({ id, type: "tools", input });
+    }),
+  getProject: () => structuredClone(project),
+  getActive: () => activeStage,
+  apply: (patch) => {
+    inputs = {
+      ...inputs,
+      ...patch,
+      gost: {
+        ...inputs.gost,
+        faceFactorsConfirmed: false,
+        surfaceConfirmed: false,
+      },
+    };
+    run();
+    toast("Параметры применены. Пересчитываем редуктор и опоры.");
+  },
+});
+setupShell();
 run();

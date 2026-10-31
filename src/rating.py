@@ -45,7 +45,7 @@ def normative_rating(p, c, b, T, step=None, check=None):
     if not isinstance(p, dict) or not isinstance(c, dict):
         return reject('Исходные данные и геометрия должны быть объектами JSON')
     if p.get('_tableMissing'):
-        return reject('Автоматическая Т7 не содержит fpb для выбранного модуля или диаметра. Задайте обоснованные погрешности вручную и отключите Т7.')
+        return reject('Выбранные модуль, диаметр или скорость выходят за область автоматической Т7. Для отдельного расчёта задайте обоснованные погрешности вручную и отключите Т7; область ГОСТ проверяется независимо.')
     cfg = p.get('gost', {})
     if not isinstance(cfg, dict):
         return reject('gost должен быть объектом JSON')

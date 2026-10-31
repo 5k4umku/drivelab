@@ -10,6 +10,9 @@ const py = await loadPyodide({
 });
 for (const name of [
   "engine.py",
+  "selection.py",
+  "automation.py",
+  "tolerances.py",
   "rating.py",
   "coefficients.py",
   "motor.py",
@@ -24,7 +27,7 @@ for (const name of [
     await readFile(resolve(root, "src", name), "utf8"),
   );
 py.runPython(
-  "from engine import calculate_json\nfrom assembly import assembly_json",
+  "from engine import calculate_json\nfrom assembly import assembly_json\nfrom automation import tools_json",
 );
 for (const name of [
   "helical-seminar",
@@ -54,6 +57,30 @@ for (const name of [
   assert.deepEqual(actual.rating.faceAuto, expected.rating.faceAuto);
   console.log(name + ": native CPython / WebAssembly parity passed");
 }
+for (const [action, args, check] of [
+  [
+    "zubil",
+    { low: 80, high: 90, ratio: 3, tolerance: 3 },
+    (r) => assert.deepEqual([r.best.z1, r.best.z2, r.best.lcm], [23, 67, 1541]),
+  ],
+  [
+    "fit",
+    { diameter: 40, hole_grade: 7, shaft_grade: 6 },
+    (r) => assert.equal(r.gapMax, 0.041),
+  ],
+]) {
+  py.globals.set("payload", JSON.stringify({ action, args }));
+  check(JSON.parse(py.runPython("tools_json(payload)")));
+}
+py.runPython("from assembly import from_single");
+const assisted = JSON.parse(
+  py.runPython(
+    "tools_json(__import__('json').dumps(dict(action='search',project=from_single(),index=0)))",
+  ),
+);
+assert.equal(assisted.count, 24);
+assert.ok(assisted.accepted > 0);
+console.log("Zubil, IT и автоподбор: WebAssembly проверен.");
 const reducer = JSON.parse(
   await readFile(resolve(root, "examples/reducer-three-stage.json"), "utf8"),
 );

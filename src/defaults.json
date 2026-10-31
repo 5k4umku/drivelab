@@ -79,6 +79,7 @@
   "driverClass": 0,
   "machineClass": 1,
   "autoSurface": false,
+  "rootFinish": "cut",
   "faceMode": "manual",
   "faceDeviation": 8,
   "faceHV": 300,
@@ -92,5 +93,6 @@
   "manualZ2": 60,
   "manualWidth": 30,
   "manualBeta": 15,
-  "ringRim": 10
+  "ringRim": 10,
+  "selectionPolicy": "precision"
 }

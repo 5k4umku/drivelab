@@ -1,3 +1,8 @@
+import {
+  installSceneEffects,
+  prepareSceneEffects,
+  moveCamera,
+} from "./scene-effects.js";
 import * as THREE from "three";
 import { OrbitControls } from "../vendor/three/OrbitControls.js";
 
@@ -206,6 +211,7 @@ export class GearViewer {
     this.lines = new THREE.Group();
     this.model.add(this.lines);
     this.lines.visible = false;
+    installSceneEffects(this);
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(container);
     this.last = performance.now();
@@ -219,6 +225,12 @@ export class GearViewer {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    if (
+      this.result &&
+      (!this.visibleWidth || Math.abs(w - this.visibleWidth) > 40)
+    )
+      this.view(this.viewMode || "iso");
+    this.visibleWidth = w;
   }
   update(result) {
     const c = result.chosen;
@@ -259,6 +271,11 @@ export class GearViewer {
           result.assemblyContext?.hand === "left" ? -1 : 1,
         ),
         material,
+      );
+      gear.userData.explodeDirection = new THREE.Vector3(
+        0,
+        0,
+        (i === 1 ? -1 : 1) * result.b * 2,
       );
       group.add(gear);
       // shaft symbols have illustrative diameter, separately identified in caption.
@@ -327,16 +344,27 @@ export class GearViewer {
     this.gears[0].rotation.z = this.pinionPhase;
     this.gears[1].rotation.z = this.phase;
     this.extent = c.outerDiameter || c.da1 / 2 + c.a + c.da2 / 2;
-    this.view("iso");
+    this.view(this.viewMode || "iso");
+    prepareSceneEffects(this);
     this.resize();
   }
   view(mode) {
+    this.viewMode = mode;
     const s = this.extent || 450;
-    this.controls.target.set(0, 0, 0);
-    this.camera.position.set(
-      mode === "front" ? 0 : -s * 0.6,
-      mode === "front" ? 0 : s * 0.65,
-      mode === "front" ? s * 1.7 : s * 1.25,
+    const aspect =
+      this.container.clientWidth / Math.max(1, this.container.clientHeight) ||
+      1;
+    const distance = (s * 1.8) / Math.min(1, Math.max(0.35, aspect));
+    this.camera.far = Math.max(10000, distance * 10);
+    this.camera.updateProjectionMatrix();
+    moveCamera(
+      this,
+      new THREE.Vector3(),
+      mode === "front"
+        ? new THREE.Vector3(0, 0, distance)
+        : new THREE.Vector3(-0.6, 0.65, 1.25)
+            .normalize()
+            .multiplyScalar(distance),
     );
     this.camera.up.set(0, 1, 0);
     this.controls.update();
@@ -344,7 +372,7 @@ export class GearViewer {
   animate(now) {
     const dt = Math.min((now - this.last) / 1000, 0.05);
     this.last = now;
-    if (this.result && this.playing && !document.hidden) {
+    if (this.result && this.playing && !document.hidden && this.inViewport) {
       this.theta =
         (this.theta +
           (dt * this.scale * this.result.input.speed * 2 * Math.PI) / 60) %
@@ -355,8 +383,10 @@ export class GearViewer {
         ((this.result.chosen.meshType === "internal" ? 1 : -1) * this.theta) /
           this.result.chosen.u;
     }
+    this.tickEffects(dt);
     this.controls.update();
-    if (!document.hidden) this.renderer.render(this.scene, this.camera);
+    if (!document.hidden && this.inViewport)
+      this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this.animate);
   }
 }
