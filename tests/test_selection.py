@@ -6,7 +6,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from selection import zubil,tooth_pairs
 from tolerances import fit,tolerance
 from engine import DEFAULTS,calculate
-from assembly import from_single
+from assembly import from_single, new_shaft
 from automation import search,inspect
 
 class SelectionTests(unittest.TestCase):
@@ -69,5 +69,21 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual((r['chosen']['z1'],r['chosen']['z2']),(43,273))
         self.assertTrue(r['rating']['available'])
         self.assertFalse(r['rating']['complete'])
+
+    def test_search_rejects_unrated_other_stage(self):
+        p=from_single({'ratio':3})
+        p['stages'].append(dict(input={**DEFAULTS,'meshType':'internal','ratio':3,'faceMode':'manual'},angle=60,axial=None,hand='right'))
+        p['shafts']=[new_shaft() for _ in range(3)]
+        r=search(p)
+        self.assertEqual(r['accepted'],0)
+        self.assertTrue(any('Ступень 2: прочность вне' in row.get('reason','') for row in r['rows']))
+
+    def test_search_rejects_failed_other_stage(self):
+        p=from_single({'ratio':3})
+        p['stages'].append(dict(input={**DEFAULTS,'ratio':3,'aOverride':100,'psiBd':.6,'faceMode':'manual','modules':'1 1.25 1.5 2'},angle=60,axial=None,hand='right'))
+        p['shafts']=[new_shaft() for _ in range(3)]
+        r=search(p)
+        self.assertEqual(r['accepted'],0)
+        self.assertTrue(any('Ступень 2:' in row.get('reason','') for row in r['rows']))
 
 if __name__=='__main__': unittest.main()

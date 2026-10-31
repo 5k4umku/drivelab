@@ -1,7 +1,7 @@
 {
   "format": "DriveLab",
   "version": 2,
-  "engine": "0.3.0",
+  "engine": "0.4.0",
   "project": {
     "name": "Редуктор с АИР90L4 и внутренней ступенью",
     "power": 2.2,
@@ -90,6 +90,7 @@
           "driverClass": 0,
           "machineClass": 1,
           "autoSurface": false,
+          "rootFinish": "cut",
           "faceMode": "seminar",
           "faceDeviation": 8,
           "faceHV": 300,
@@ -103,7 +104,8 @@
           "manualZ2": 60,
           "manualWidth": 30,
           "manualBeta": 15,
-          "ringRim": 10
+          "ringRim": 10,
+          "selectionPolicy": "precision"
         },
         "angle": 0,
         "axial": 0,
@@ -191,6 +193,7 @@
           "driverClass": 0,
           "machineClass": 1,
           "autoSurface": false,
+          "rootFinish": "cut",
           "faceMode": "manual",
           "faceDeviation": 8,
           "faceHV": 300,
@@ -204,7 +207,8 @@
           "manualZ2": 60,
           "manualWidth": 30,
           "manualBeta": 15,
-          "ringRim": 10
+          "ringRim": 10,
+          "selectionPolicy": "precision"
         },
         "angle": 70,
         "axial": null,

@@ -88,6 +88,7 @@
           "driverClass": 0,
           "machineClass": 1,
           "autoSurface": false,
+          "rootFinish": "cut",
           "faceMode": "seminar",
           "faceDeviation": 8,
           "faceHV": 300,
@@ -101,7 +102,8 @@
           "manualZ2": 60,
           "manualWidth": 30,
           "manualBeta": 15,
-          "ringRim": 10
+          "ringRim": 10,
+          "selectionPolicy": "precision"
         },
         "angle": 0,
         "axial": 0,
@@ -189,6 +191,7 @@
           "driverClass": 0,
           "machineClass": 1,
           "autoSurface": false,
+          "rootFinish": "cut",
           "faceMode": "manual",
           "faceDeviation": 8,
           "faceHV": 300,
@@ -202,7 +205,8 @@
           "manualZ2": 60,
           "manualWidth": 30,
           "manualBeta": 15,
-          "ringRim": 10
+          "ringRim": 10,
+          "selectionPolicy": "precision"
         },
         "angle": 70,
         "axial": null,
@@ -302,7 +306,7 @@
           "treatment2": "У",
           "rowName1": "У785",
           "rowName2": "У685",
-          "materialSource": "Т1 семинара IMG_7977; шестерня по таблице У785, колесо на две строки мягче У685 по указанию пользователя 29.10.2026",
+          "materialSource": "Т1 семинара; шестерня У785, колесо У685 на две строки мягче по правилу пользователя",
           "materialConfirmed": true,
           "factorsConfirmed": false,
           "alpha": 20,
@@ -335,6 +339,7 @@
           "driverClass": 0,
           "machineClass": 1,
           "autoSurface": false,
+          "rootFinish": "cut",
           "faceMode": "seminar",
           "faceDeviation": 8,
           "faceHV": 300,
@@ -349,6 +354,7 @@
           "manualWidth": 30,
           "manualBeta": 15,
           "ringRim": 10,
+          "selectionPolicy": "precision",
           "gost": {}
         },
         "trace": [
@@ -738,6 +744,15 @@
             "value": 0.6802721088435308,
             "unit": "%",
             "source": "Семинары: бланк и таблицы Т1–Т9"
+          },
+          {
+            "section": "4. Выбор модуля и зубьев",
+            "title": "Период повторения пары зубьев",
+            "formula": "Nповт = НОК(z₁,z₂) / z₁",
+            "substitution": "7154 / 49",
+            "value": 146,
+            "unit": "оборотов шестерни",
+            "source": "Кинематический критерий Zubil; не является проверкой прочности по ГОСТ."
           },
           {
             "section": "5. Геометрия и силы",
@@ -1690,7 +1705,7 @@
           {
             "title": "Строки материалов",
             "status": "pass",
-            "detail": "Т1 семинара IMG_7977; шестерня по таблице У785, колесо на две строки мягче У685 по указанию пользователя 29.10.2026"
+            "detail": "Т1 семинара; шестерня У785, колесо У685 на две строки мягче по правилу пользователя"
           },
           {
             "title": "Диапазоны коэффициентов",
@@ -1720,7 +1735,7 @@
           {
             "title": "Взаимная простота",
             "status": "pass",
-            "detail": "НОД(49; 146) = 1; НОК = 7154"
+            "detail": "НОД(49; 146) = 1; НОК = 7154. Взаимная простота — рекомендация по повторяемости контакта, не обязательное условие ГОСТ."
           },
           {
             "title": "Осевое перекрытие",
@@ -3024,7 +3039,7 @@
           "treatment2": "У",
           "rowName1": "У785",
           "rowName2": "У685",
-          "materialSource": "Т1 семинара IMG_7977; шестерня по таблице У785, колесо на две строки мягче У685 по указанию пользователя 29.10.2026",
+          "materialSource": "Т1 семинара; шестерня У785, колесо У685 на две строки мягче по правилу пользователя",
           "materialConfirmed": true,
           "factorsConfirmed": true,
           "alpha": 20,
@@ -3057,6 +3072,7 @@
           "driverClass": 0,
           "machineClass": 1,
           "autoSurface": false,
+          "rootFinish": "cut",
           "faceMode": "manual",
           "faceDeviation": 8,
           "faceHV": 300,
@@ -3070,7 +3086,8 @@
           "manualZ2": 60,
           "manualWidth": 30,
           "manualBeta": 15,
-          "ringRim": 10
+          "ringRim": 10,
+          "selectionPolicy": "precision"
         },
         "trace": [
           {

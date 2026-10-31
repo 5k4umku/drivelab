@@ -70,7 +70,7 @@ def search(project,index=0):
     for center in centers:
         for width in widths:
             for grade in (6,7,8,9):
-                patch=dict(aOverride=center,psiBd=width,accuracy=grade,selectedModule=0,selectionPolicy='zubil',excludeEdges=False)
+                patch=dict(aOverride=center,psiBd=width,accuracy=grade,autoTables=True,selectedModule=0,selectionPolicy='zubil',excludeEdges=False)
                 trial=copy.deepcopy(project)
                 trial['stages'][index]['input'].update(patch)
                 # Проверяем весь редуктор, включая пересчёт Т5 и каскад частот.
@@ -78,13 +78,14 @@ def search(project,index=0):
                 if a['errors']:
                     rows.append(dict(patch=patch,eligible=False,reason='; '.join(a['errors']),a=center,b=None,margin=None));continue
                 sr=a['stages'][index]['result']; c=sr['chosen'];rt=sr['rating'] or {}
-                failed=[x['title'] for x in sr['checks'] if x['status']=='fail']
+                failed=[f"Ступень {j+1}: {x['title']}" for j,stage in enumerate(a['stages']) for x in stage['result']['checks'] if x['status']=='fail']
+                unverified=[f"Ступень {j+1}: прочность вне реализованной области" for j,stage in enumerate(a['stages']) if not (stage['result'].get('rating') or {}).get('available')]
                 assembly_failed=[x['title'] for x in a['checks'] if x['status']=='fail']
                 score=margin(rt)
-                eligible=score is not None and score>=1 and not failed and not assembly_failed
-                pending=sum(x['status']=='pending' for x in sr['checks'])
+                eligible=score is not None and score>=1 and not failed and not assembly_failed and not unverified
+                pending=sum(x['status']=='pending' for stage in a['stages'] for x in stage['result']['checks'])+sum(x['status']=='pending' for x in a['checks'])
                 rows.append(dict(patch=patch,eligible=eligible,a=c['a'],b=sr['b'],m=c['m'],z1=c['z1'],z2=c['z2'],errorPct=c['errorPct'],
-                    margin=score,pending=pending,reason='; '.join(failed+assembly_failed) or rt.get('reason',''),
+                    margin=score,pending=pending,reason='; '.join(failed+assembly_failed+unverified) or rt.get('reason',''),
                     volume=(c['da1']**2+c['da2']**2)*sr['b'],outputSpeed=a['outputSpeed']))
     rows.sort(key=lambda x:(not x['eligible'],x.get('volume',math.inf) if x['eligible'] else -(x['margin'] or 0),x['patch']['accuracy']))
     return dict(rows=rows,count=len(rows),accepted=sum(x['eligible'] for x in rows),

@@ -424,6 +424,9 @@ h2 {
 }
 .builder-global,
 .builder-card,
+.strength-card,
+.flow-stage,
+details,
 .metric,
 .design-card,
 .table-wrap,
@@ -435,6 +438,28 @@ h2 {
   background: var(--surface);
   border-color: var(--line);
   box-shadow: var(--shadow);
+}
+.metrics {
+  background: transparent;
+  border: 0;
+  gap: 12px;
+}
+.flow-stage.selected,
+.material-preview,
+.stage-number,
+.shaft-number {
+  background: var(--surface-2);
+  color: var(--green);
+  border-color: var(--line);
+}
+.flow-stage.selected {
+  border-color: var(--green);
+}
+.equation {
+  color: var(--green);
+}
+.trace-step {
+  border-color: var(--line);
 }
 .builder-card,
 .design-card,
@@ -471,6 +496,17 @@ fieldset select,
 .automatic-field {
   background: var(--surface-2) !important;
   color: var(--muted);
+}
+.checkbox-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+  flex: 0 0 18px;
+}
+.dialog-head button {
+  background: var(--surface-2);
+  color: var(--ink);
 }
 .builder-fields {
   gap: 14px;
@@ -965,6 +1001,7 @@ footer {
     justify-content: initial;
     display: flex;
     transform: translateX(-100%);
+    visibility: hidden;
     transition: transform 0.2s;
     width: 260px;
     bottom: 64px;
@@ -973,6 +1010,7 @@ footer {
   }
   .menu-open .sidebar {
     transform: none;
+    visibility: visible;
   }
   .workspace {
     margin-left: 0;

@@ -11,7 +11,7 @@ from coefficients import prepare, REGIMES
 from internal import calculate_internal
 from selection import tooth_pairs
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
 TABLES = json.loads(Path(__file__).with_name('seminar_tables.json').read_text(encoding='utf-8'))
 MATERIALS = [
@@ -202,7 +202,7 @@ def calculate(p, compare=False):
             if p['aOverride']:
                 lo=hi=2*a/m
                 if abs(lo-round(lo))>1e-9: continue
-        if lo>hi or hi>100000: continue
+        if math.ceil(lo)>math.floor(hi) or hi>100000: continue
         candidates=[]
         for zs in range(math.ceil(lo),math.floor(hi)+1):
             z1=math.floor(zs/(u+1)+.5); z2=zs-z1
@@ -256,10 +256,11 @@ def calculate(p, compare=False):
             ('Минимальный угол наклона','β = 0 для прямых зубьев' if spur else 'βmin = arcsin(π mn / bактив)','0' if spur else f"arcsin(π × {f(c['m'])} / {f(b/2 if chevron else b)})",c['betaMin'],'°'),
             ('Минимальная сумма зубьев',('zΣ = 2 aw / mn' if p['aOverride'] else 'zΣ,min = ceil(2 aрасч / mn)') if spur else 'zΣ,min = 2 aw cos βmax / mn',(f"2 × {f(a)} / {f(c['m'])}" if p['aOverride'] else f"ceil(2 × {f(ac)} / {f(c['m'])})") if spur else f"2 × {f(a)} × cos {f(p['betaMax'])}° / {f(c['m'])}",c['lo'],''),
             ('Максимальная сумма зубьев',('zΣ = 2 aw / mn' if p['aOverride'] else 'zΣ,max = ceil(2 aR10 / mn) + 2') if spur else 'zΣ,max = 2 aw cos βmin / mn',(f"2 × {f(a)} / {f(c['m'])}" if p['aOverride'] else f"ceil(2 × {f(r10(ac))} / {f(c['m'])}) + 2") if spur else f"2 × {f(a)} × cos {f(c['betaMin'])}° / {f(c['m'])}",c['hi'],''),
-            ('Выбор зубьев шестерни','z₁ ∈ {floor,ceil}(zΣ/(u+1)); max НОК в допуске' if p['selectionPolicy']=='zubil' else 'z₁ = round(zΣ / (u + 1))',f"round({c['z1']+c['z2']} / {f(u+1)})",c['z1'],''),
+            ('Выбор зубьев шестерни','z₁ ∈ {floor,ceil}(zΣ/(u+1)); max НОК в допуске' if p['selectionPolicy']=='zubil' else 'z₁ = round(zΣ / (u + 1))',(f"floor/ceil({c['z1']+c['z2']} / {f(u+1)}); выбрано {c['z1']}" if p['selectionPolicy']=='zubil' else f"round({c['z1']+c['z2']} / {f(u+1)})"),c['z1'],''),
             ('Выбор зубьев колеса','z₂ = zΣ − z₁',f"{c['z1']+c['z2']} − {c['z1']}",c['z2'],''),
             ('Фактическое передаточное число','uф = z₂ / z₁',f"{c['z2']} / {c['z1']}",c['u'],''),
             ('Отклонение передаточного числа','δu = |uф − u| / u × 100%',f"|{f(c['u'])} − {f(u)}| / {f(u)} × 100",c['errorPct'],'%')]: step(sec,title,formula,sub,value,unit)
+        step(sec,'Период повторения пары зубьев','Nповт = НОК(z₁,z₂) / z₁',f"{math.lcm(c['z1'],c['z2'])} / {c['z1']}",c['z2']//math.gcd(c['z1'],c['z2']),'оборотов шестерни','Кинематический критерий Zubil; не является проверкой прочности по ГОСТ.')
         sec='5. Геометрия и силы'
         step(sec,'Угол наклона зубьев','β = arccos(mn (z₁ + z₂) / (2 aw))',f"arccos({f(c['m'])} × {c['z1']+c['z2']} / (2 × {f(a)}))",c['beta'],'°')
         step(sec,'Торцовый угол профиля','αt = arctan(tan αn / cos β)',f"arctan(tan {f(p['alpha'])}° / cos {f(c['beta'])}°)",c['alphaT'],'°')

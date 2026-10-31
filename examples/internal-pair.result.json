@@ -48,7 +48,7 @@
     "treatment2": "У",
     "rowName1": "У785",
     "rowName2": "У685",
-    "materialSource": "Т1 семинара IMG_7977; шестерня по таблице У785, колесо на две строки мягче У685 по указанию пользователя 29.10.2026",
+    "materialSource": "Т1 семинара; шестерня У785, колесо У685 на две строки мягче по правилу пользователя",
     "materialConfirmed": true,
     "factorsConfirmed": true,
     "alpha": 20,
@@ -81,6 +81,7 @@
     "driverClass": 0,
     "machineClass": 1,
     "autoSurface": false,
+    "rootFinish": "cut",
     "faceMode": "manual",
     "faceDeviation": 8,
     "faceHV": 300,
@@ -94,7 +95,8 @@
     "manualZ2": 60,
     "manualWidth": 30,
     "manualBeta": 15,
-    "ringRim": 10
+    "ringRim": 10,
+    "selectionPolicy": "precision"
   },
   "trace": [
     {
