@@ -9,7 +9,7 @@ from gost_materials import material_properties
 from gost_special import helical_allowable, spur_bending
 from gost_subsurface import deep_contact, reduced_radius
 from gost_geometry import external_geometry, pair_stiffness, tooth_form_factor
-from gost_dynamics import resonance_state, resonant_factor, subcritical_forces
+from gost_dynamics import MissingDynamicMeasurements, resonance_state, resonant_factor, subcritical_forces
 from gost_manufacture import manufacture_factors
 
 SOURCE = 'ГОСТ 21354-87, приложение 1'
@@ -48,6 +48,9 @@ def normative_rating(p, c, b, T, step=None, check=None):
             return False
     if not isinstance(p, dict) or not isinstance(c, dict):
         return reject('Исходные данные и геометрия должны быть объектами JSON')
+    if '_flankYA' in p and (not isinstance(p['_flankYA'],list) or len(p['_flankYA'])!=2 or
+                             any(not number(y) or not 0<y<=1 for y in p['_flankYA'])):
+        return reject('Для реверса задайте два конечных коэффициента 0<YA≤1')
     if '_face27' in p:
         face = p['_face27']
         if (not isinstance(face,dict) or set(face) != {'KHbeta','KFbeta','peakKHbeta'} or
@@ -129,6 +132,8 @@ def normative_rating(p, c, b, T, step=None, check=None):
         return reject('Числа зубьев должны быть целыми')
     try:
         return _normative_rating(p,c,b,T,step,check)
+    except MissingDynamicMeasurements as exc:
+        return dict(reject(str(exc)), reasonCode='missingDynamicMeasurements')
     except (ArithmeticError, ValueError, KeyError, TypeError) as exc:
         return reject(f'Расчёт вне допустимой численной области: {type(exc).__name__}: {exc}')
 
@@ -435,7 +440,7 @@ def _normative_rating(p, c, b, T, step=None, check=None):
                        staticBase=6.5*hb if 200<=hb<=350 else None,
                        staticSource=f'табл. 19, улучшение: 6,5×{n(hb)} HB; среднее диапазона Т1')
         soft_wheel = mat['hv'] <= 350 if materials else soft
-        ya, yr = p['YA'], mat.get('YR') or p['YR']
+        ya, yr = p.get('_flankYA',[p['YA'],p['YA']])[idx], mat.get('YR') or p['YR']
         if materials and p.get('loadDirection') == 'reversing':
             if mat['gammaA'] is None:
                 return rejected(f'Материал {i}: для симметричного реверса требуется обоснованный γA')

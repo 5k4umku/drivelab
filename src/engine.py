@@ -11,7 +11,7 @@ from coefficients import prepare, REGIMES
 from internal import calculate_internal
 from selection import tooth_pairs
 
-VERSION = '0.4.0'
+VERSION = '0.5.0'
 DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
 TABLES = json.loads(Path(__file__).with_name('seminar_tables.json').read_text(encoding='utf-8'))
 MATERIALS = [
@@ -123,7 +123,7 @@ def validate(p):
     except ValueError: errors.append('Модули: 1…30 чисел от 0,1 до 50 мм через пробел')
     return errors
 
-def calculate(p, compare=False):
+def _calculate(p, compare=False):
     if not isinstance(p,dict): return dict(errors=['Исходные данные должны быть объектом JSON'],trace=[],checks=[],variants=[])
     p={**DEFAULTS,**p}
     errors=validate(p)
@@ -249,7 +249,7 @@ def calculate(p, compare=False):
     for variant in variants:
         trial=normative_rating(rating_inputs(p,variant),variant,b,T)
         variant['contactMargin']=trial.get('marginH')
-        variant['bendingMargin']=min(trial['marginF']) if trial.get('marginF') else None
+        variant['bendingMargin']=min(trial['marginF']) if trial.get('marginF') and None not in trial['marginF'] else None
     check('Твёрдость шестерни выше твёрдости колеса',p['hb1min']>p['hb2min'] and p['hb1max']>p['hb2max'],f"Шестерня {p['hb1min']}–{p['hb1max']} HB; колесо {p['hb2min']}–{p['hb2max']} HB. Сравниваются заданные диапазоны; они могут пересекаться.")
     if p['treatment1']==p['treatment2']=='У': check('Колесо на две строки мягче при У / У',p['row1']==p['row2']+2 if p['materialMode']=='table' else 'pending',f"Класс шестерни {p['rowName1']}; колеса {p['rowName2']}. Для пользовательских свойств привязка к двум строкам таблицы не подтверждена.")
     check('Строки материалов',True if p['materialConfirmed'] else 'pending',p['materialSource'])
@@ -316,6 +316,21 @@ def calculate(p, compare=False):
             if oc:
                 out['sizeComparison'].append(dict(a=center,b=other['b'],m=oc['m'],z1=oc['z1'],z2=oc['z2'],contactMargin=rt.get('marginH'),stress=rt.get('h'),allowable=rt.get('hAllow'),tablesValid=not rating_inputs(p,oc).get('_tableMissing',False),status=other['status']))
     return out
+
+
+def calculate(p, compare=False):
+    result = _calculate(p,compare)
+    params = result.get('input',{})
+    if result.get('chosen') and 'design' in params.get('gost',{}):
+        from gost_design import project_design
+        design = project_design(params,result['chosen'],result['b'],result['T'],result['rating'] or {})
+        result['design'] = design
+        if design['available']:
+            result['trace'].extend(dict(section='9. Проектировочный расчёт по ГОСТ', **x) for x in design['trace'])
+        else:
+            result['checks'].append(dict(title='Проектировочный расчёт по приложению 1',status='pending',detail=design['reason']))
+            if result['status']=='pass': result['status']='pending'
+    return result
 
 def calculate_json(payload):
     return json.dumps(calculate(json.loads(payload),compare=True),ensure_ascii=False,allow_nan=False)

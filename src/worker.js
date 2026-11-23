@@ -6,21 +6,9 @@ const ready = (async () => {
     indexURL: new URL("../vendor/pyodide/", self.location).href,
   });
   self.postMessage({ type: "phase", message: "Загрузка расчётной модели…" });
-  for (const name of [
-    "engine.py",
-    "selection.py",
-    "automation.py",
-    "tolerances.py",
-    "defaults.json",
-    "rating.py",
-    "gost_spectrum.py",
-    "coefficients.py",
-    "motor.py",
-    "internal.py",
-    "motors.json",
-    "seminar_tables.json",
-    "assembly.py",
-  ]) {
+  const manifest = await fetch(new URL("python-files.json", self.location));
+  if (!manifest.ok) throw Error("Не удалось загрузить список файлов расчётного ядра");
+  for (const name of await manifest.json()) {
     const response = await fetch(new URL(name, self.location));
     if (!response.ok) throw Error(`Не удалось загрузить ${name}`);
     runtime.FS.writeFile("/home/pyodide/" + name, await response.text());

@@ -88,3 +88,50 @@ class DesignTests(unittest.TestCase):
         self.assertTrue(after['available'],after.get('reason'))
         for key in ('aW','dw1','moduleByWidth','moduleByCenter'):
             self.assertAlmostEqual(after[key],before[key])
+
+    def test_section_five_uses_actual_history_and_direction(self):
+        from test_rating import fixture
+        from gost_spectrum import stage_rating
+
+        p, c, b, t = fixture()
+        p.update(startup=1, autoTables=False, KA=1, life=20000)
+        c['aW'] = (c['d1'] + c['d2']) / 2
+        for method in ('cycles', 'stresses'):
+            for loads in ([2], [1, -2], [1, 2], [12], [12, -24]):
+                with self.subTest(method=method, loads=loads):
+                    spec = [dict(torqueRatio=v, timeFraction=1/len(loads)) for v in loads]
+                    p['gost'] = dict(spectrum=spec, spectrumMethod=method, design={})
+                    if method == 'stresses' and min(loads) < 0:
+                        p['gost']['reverseYA'] = dict(forward=[.9, .9], reverse=[.85, .85], source='Контрольный пример')
+                    rt = stage_rating(p, c, b, t)
+                    self.assertTrue(rt['available'], rt.get('reason'))
+                    result = project_design(p, c, b, t, rt)
+                    if loads == [1, 2] or (method == 'stresses' and loads in ([2], [1, -2])):
+                        self.assertFalse(result['available'])
+                        continue
+                    self.assertTrue(result['available'], result.get('reason'))
+                    self.assertEqual(len(result['cases']), len(loads))
+                    if method == 'cycles' and loads == [2]:
+                        self.assertAlmostEqual(result['cases'][0]['T2H'], 187.1529078014, places=8)
+                        self.assertAlmostEqual(result['aW'], 192.396, delta=.002)
+                        self.assertAlmostEqual(result['moduleByWidth'], 1.36062, delta=.00002)
+                    for case, load in zip(result['cases'], loads):
+                        self.assertAlmostEqual(case['T2H'], abs(load)*t*c['u'])
+                        self.assertAlmostEqual(case['T2F'], case['T2H'])
+                        self.assertAlmostEqual(case['FP1'], 550*.4*case['YN']*(.75 if min(loads)<0 else 1))
+
+    def test_application_conditions_apply_to_preliminary_sizing(self):
+        from engine import calculate
+        for temperature, closed, special, rack, allowed in (
+            (-40, True, False, True, True), (100, True, False, True, True),
+            (-40.001, True, False, True, False), (100.001, True, False, True, False),
+            (150, True, False, True, False), (20, False, False, True, False),
+            (20, True, True, True, False), (20, True, False, False, False),
+        ):
+            with self.subTest(temperature=temperature, closed=closed, special=special, rack=rack):
+                conditions = dict(ambientC=temperature, closed=closed, specialRules=special, standardRack=rack)
+                result = calculate(dict(gost=dict(conditions=conditions, design={})))
+                self.assertEqual(result['rating']['available'], allowed)
+                self.assertEqual(result['design']['available'], allowed)
+                if not allowed:
+                    self.assertIn(result['design']['reason'], [c['detail'] for c in result['checks']])

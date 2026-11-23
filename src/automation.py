@@ -46,13 +46,13 @@ def inspect(result,load_percent=10):
         for grade in (6,7,8,9):
             gp,_=prepare({**p,'accuracy':grade,'autoTables':True})
             gr=normative_rating(rating_inputs(gp,c),c,result['b'],result['T'])
-            grades.append(dict(grade=grade,margin=margin(gr),h=gr.get('h'),f=max(gr['fs']) if gr.get('fs') else None,reason=gr.get('reason'),available=gr.get('available',False)))
+            grades.append(dict(grade=grade,margin=margin(gr),h=gr.get('h'),f=max(gr['fs']) if gr.get('fs') and None not in gr['fs'] else None,reason=gr.get('reason'),available=gr.get('available',False)))
         for label,factor in [('Нижняя нагрузка',1-load_percent/100),('Номинальная',1),('Верхняя нагрузка',1+load_percent/100)]:
             # Геометрия, частота и максимальная нагрузка фиксированы.
             # KAS обратно пропорционален T: абсолютный пусковой момент не меняется.
             sp={**p,'startup':max(1,p['startup']/factor)}
             sr=normative_rating(rating_inputs(sp,c),c,result['b'],result['T']*factor)
-            scenarios.append(dict(label=label,factor=factor,torque=result['T']*factor,margin=margin(sr),h=sr.get('h'),f=max(sr['fs']) if sr.get('fs') else None,reason=sr.get('reason')))
+            scenarios.append(dict(label=label,factor=factor,torque=result['T']*factor,margin=margin(sr),h=sr.get('h'),f=max(sr['fs']) if sr.get('fs') and None not in sr['fs'] else None,reason=sr.get('reason')))
     return dict(tips=tips,grades=grades,scenarios=scenarios,loadPercent=load_percent,
         note='Чувствительность: три расчёта одной геометрии при изменении рабочего момента. Это сценарный интервал, а не статистическая погрешность или вероятность отказа. Пусковой момент сохраняется, но не ниже рабочего.')
 

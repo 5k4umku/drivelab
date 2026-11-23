@@ -55,9 +55,8 @@ def calculate_given(p, rating_inputs):
     step(sec,'Окружная сила на начальной окружности','Ftw=2000T₁/dw₁',f"2000 × {T:.7g} / {c['dw1']:.7g}",ft,'Н','Равновесие вала')
     check('Передаточное число',c['errorPct']<=p['ratioTolerance'],f"uф={c['u']:.6g}; целевое u={p['ratio']}; отклонение {c['errorPct']:.5g} %.")
     rating = stage_rating(rating_inputs(p,c),c,b,T,step,check)
-    c.update(contactMargin=rating.get('marginH'), bendingMargin=min(rating['marginF']) if rating.get('marginF') else None)
+    c.update(contactMargin=rating.get('marginH'), bendingMargin=min(rating['marginF']) if rating.get('marginF') and None not in rating['marginF'] else None)
     status = 'fail' if any(x['status']=='fail' for x in checks) else 'pending' if any(x['status']=='pending' for x in checks) else 'pass'
     return dict(errors=[],input=p,trace=trace,checks=checks,status=status,variants=[c],chosen=c,recommended=None,T=T,
-                hp=rating.get('hp',[]),fp=rating.get('fp',[]),HP=rating.get('hAllow'),FP=min(rating['fp']) if rating.get('fp') else None,
+                hp=rating.get('hp',[]),fp=rating.get('fp',[]),HP=rating.get('hAllow'),FP=min(rating['fp']) if rating.get('fp') and None not in rating['fp'] else None,
                 psi=b/c['a'],ap=None,ac=None,a=c['a'],b=b,mmin=m,mmax=m,sizeComparison=[],rating=rating,coefficientAudit=audit)
-

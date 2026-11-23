@@ -2,6 +2,10 @@
 import math
 
 
+class MissingDynamicMeasurements(ValueError):
+    """Operating dynamic factors need measurements that preliminary sizing does not use."""
+
+
 def _value(value, name, *, zero=False):
     if (type(value) not in (float, int) or not math.isfinite(value)
             or value < 0 or (not zero and value == 0)):
@@ -88,7 +92,7 @@ def resonant_factor(state, config, overlap, stiffness, width, force, ka, running
     if zone not in ('resonant', 'transition', 'supercritical') or overlap <= 1:
         raise ValueError('Таблица 26 требует εγ>1 и n₁/nE1≥0,85')
     if not {'pitchError', 'profileError'} <= config.keys():
-        raise ValueError('Для приложения 5 задайте погрешности шага fpb и профиля ff в мкм')
+        raise MissingDynamicMeasurements('Для приложения 5 задайте погрешности шага fpb и профиля ff в мкм')
     if running_in < 0 or min(config['pitchError'], config['profileError']) < running_in:
         raise ValueError('Приработка yα должна лежать между нулём и каждой исходной погрешностью')
     coeffs = {'Cv1': .32}

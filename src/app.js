@@ -1,6 +1,7 @@
 import { fmt, escapeHTML as e, statusLabel } from "./format.js";
 import { GearViewer } from "./viewer.js";
 import { createBuilder, projectFromInput } from "./builder.js";
+import { gostFields, bindGostFields, readGostFields } from "./gost-fields.js";
 import { settingsFields, bindSettings, coefficientPanel } from "./settings.js";
 import { setupShell } from "./shell.js";
 import { createWorkbench } from "./workbench.js";
@@ -19,11 +20,16 @@ let inputs = { ...defaults },
   assembly = null,
   activeStage = 0;
 let project = projectFromInput(inputs);
-const STORAGE = "drivelab-project-v1";
+const demo = new URLSearchParams(location.search).get("example") === "gost-annex-11";
+const STORAGE = demo ? "drivelab-gost-example" : "drivelab-project-v1";
 try {
-  const saved = JSON.parse(localStorage.getItem(STORAGE));
+  const saved = demo ? await fetch("examples/gost-annex-11.json").then(r => {
+    if (!r.ok) throw Error("Не удалось загрузить приложение 11");
+    return r.json();
+  }) : JSON.parse(localStorage.getItem(STORAGE));
   if (saved?.version === 1) project = projectFromInput(cleanInput(saved.input));
   if (saved?.version === 2) project = cleanProject(saved.project);
+  if (demo) project.name = "Пример из приложения 11 ГОСТ";
   activeStage =
     Number.isInteger(saved?.activeStage) &&
     saved.activeStage >= 0 &&
@@ -61,8 +67,15 @@ function cleanInput(data) {
   const out = { ...defaults };
   for (const key of Object.keys(defaults))
     if (key in data) out[key] = data[key];
-  if (data.gost && typeof data.gost === "object" && !Array.isArray(data.gost))
-    out.gost = data.gost;
+  if ("gost" in data) {
+    const cfg = data.gost;
+    if (!cfg || typeof cfg !== "object" || Array.isArray(cfg))
+      throw Error("Поле gost должно содержать объект.");
+    if ("spectrum" in cfg && (!Array.isArray(cfg.spectrum) ||
+        cfg.spectrum.some(row => !row || typeof row !== "object" || Array.isArray(row))))
+      throw Error("Циклограмма должна содержать список ступеней нагрузки.");
+    out.gost = cfg;
+  }
   return out;
 }
 function toast(text) {
@@ -177,12 +190,12 @@ function render() {
   );
   $("#variant-count").textContent = r.variants.length;
   $("#metrics").innerHTML = [
-    ["Межосевое расстояние", r.a, "мм", `Расчётное ${fmt(r.ac)} мм`],
+    ["Межосевое расстояние", r.a, "мм", inputs.geometryMode === "given" ? "По рабочим диаметрам" : `Расчётное ${fmt(r.ac)} мм`],
     [
       "Нормальный модуль",
       c?.m,
       "мм",
-      inputs.meshType === "internal"
+      inputs.meshType === "internal" || inputs.geometryMode === "given"
         ? "Заданная геометрия"
         : "По таблице стандартных модулей",
     ],
@@ -211,7 +224,7 @@ function render() {
     $("#design-subtitle").textContent =
       inputs.meshType === "internal"
         ? "Внутреннее зацепление: номинальная геометрия по ГОСТ 19274–73."
-        : c.m === r.recommended?.m
+        : inputs.geometryMode === "given" ? "Задано по чертежу. Проверка использует фактические размеры пары." : c.m === r.recommended?.m
           ? inputs.selectionPolicy === "zubil"
             ? "Максимальный НОК среди найденных пар в допуске; прочность проверяется отдельно."
             : "Минимальная ошибка передаточного числа среди найденных пар."
@@ -275,7 +288,7 @@ function render() {
   $("#summary-status").textContent = failed
     ? `Не выполнено условий: ${failed}. ${pending ? `Требуют уточнения: ${pending}.` : ""}`
     : pending
-      ? `Числовые проверки выполнены. Требуют уточнения: ${pending}.`
+      ? `Требуют уточнения: ${pending}.`
       : "Проверки для заданной модели выполнены.";
   $("#check-summary").textContent =
     `Выполнено ${passed} · не выполнено ${failed} · уточнить ${pending}`;
@@ -323,7 +336,7 @@ function render() {
     ]
       .map(
         ([label, value, limit]) =>
-          `<article class="strength-card"><label>${label}</label><strong>${fmt(value, 1)} <small>МПа</small></strong><div class="bar"><i style="width:${Math.min(100, (100 * value) / limit)}%;background:${value > limit ? "var(--red)" : "var(--green)"}"></i></div><small>Допускаемое ${fmt(limit, 1)} МПа · использование ${fmt((100 * value) / limit, 1)}%</small></article>`,
+          !Number.isFinite(value) || !Number.isFinite(limit) ? `<article class="strength-card"><label>${label}</label><strong>Уточнить</strong><small>См. условия циклограммы и список проверок</small></article>` : `<article class="strength-card"><label>${label}</label><strong>${fmt(value, 1)} <small>МПа</small></strong><div class="bar"><i style="width:${Math.min(100, (100 * value) / limit)}%;background:${value > limit ? "var(--red)" : "var(--green)"}"></i></div><small>Допускаемое ${fmt(limit, 1)} МПа · использование ${fmt((100 * value) / limit, 1)}%</small></article>`,
       )
       .join("");
   } else
@@ -408,8 +421,9 @@ function showInputs() {
   peak.innerHTML = `<legend>Максимальная нагрузка</legend><label class="field">Коэффициент Sγ<input name="peakProbabilityFactor" type="number" min="1" step="any" value="${e(inputs.gost?.peakProbabilityFactor ?? 1.75)}" required></label><label class="checkbox-field"><input name="peakProbabilityFactorConfirmed" type="checkbox" ${inputs.gost?.peakProbabilityFactorConfirmed ? "checked" : ""}> Выбор Sγ обоснован для конструкции</label><p class="field-note">1,75 — начальное проектное допущение, а не универсальное предписание для всех материалов. Обоснование по п.4.2.4 и таблицам 18–19 ГОСТ. Число повторений максимума задаётся отдельно в режиме работы.</p>`;
   $("#input-fields").append(peak);
   const settings = document.createElement("div");
-  settings.innerHTML = settingsFields(inputs);
+  settings.innerHTML = gostFields(inputs) + settingsFields(inputs);
   $("#input-fields").prepend(settings);
+  bindGostFields($("#input-fields"));
   bindSettings($("#input-fields"));
   $("#inputs-dialog").showModal();
 }
@@ -418,6 +432,9 @@ $("#close-inputs").onclick = () => $("#inputs-dialog").close();
 $("#inputs-form").onsubmit = (event) => {
   event.preventDefault();
   const form = new FormData(event.target);
+  let gost;
+  try { gost = readGostFields(form, inputs.gost); }
+  catch (error) { toast(error.message); return; }
   for (const [key, value] of form) {
     if (key in defaults)
       inputs[key] = typeof defaults[key] === "number" ? Number(value) : value;
@@ -426,8 +443,9 @@ $("#inputs-form").onsubmit = (event) => {
   inputs.autoTables = form.has("autoTables");
   for (const key of ["autoKA", "autoSurface", "materialConfirmed"])
     inputs[key] = form.has(key);
+  if (inputs.geometryMode === "design") inputs.x1 = inputs.x2 = 0;
   inputs.gost = {
-    ...inputs.gost,
+    ...gost,
     faceFactorsConfirmed: form.has("faceFactorsConfirmed"),
     surfaceConfirmed: form.has("surfaceConfirmed"),
     peakProbabilityFactor: Number(form.get("peakProbabilityFactor")),
@@ -470,7 +488,7 @@ $("#save-json").onclick = () =>
     new Blob(
       [
         JSON.stringify(
-          { format: "DriveLab", version: 2, engine: "0.4.0", project },
+          { format: "DriveLab", version: 2, engine: "0.5.0", project },
           null,
           2,
         ),

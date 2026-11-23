@@ -47,7 +47,7 @@ def moments(rows, torque, hours, rpm, ratio, exponents):
 def _case(p, c, b, torque, step=None, check=None):
     cfg=p.get('gost',{})
     # prepare() уже перенёс пуск по табл. 24 в startup до расчёта размеров.
-    cleaned={k:v for k,v in cfg.items() if k not in ('peakLoad','face27')}
+    cleaned={k:v for k,v in cfg.items() if k not in ('peakLoad','face27','design','typicalMoments','spectrumMethod')}
     if 'face27' not in cfg:
         return normative_rating({**p,'gost':cleaned},c,b,torque,step,check)
     try:
@@ -75,9 +75,24 @@ def _case(p, c, b, torque, step=None, check=None):
     return r
 
 
-def stage_rating(p, c, b, torque, step=None, check=None):
+def _rated_load(p, c, b, torque, step=None, check=None):
     cfg = p.get('gost', {})
-    if 'spectrum' not in cfg:
+    method=cfg.get('spectrumMethod','moments')
+    if method not in ('moments','cycles','stresses') or ('spectrumMethod' in cfg and 'spectrum' not in cfg):
+        msg='Выберите метод для введённой циклограммы: moments, cycles или stresses.'
+        if check: check('Метод циклограммы','pending',msg)
+        return dict(available=False,complete=False,reason=msg,checks=[dict(title='Метод циклограммы',status='pending',detail=msg)],trace=[])
+    typical = cfg.get('typicalMoments', False)
+    if not isinstance(typical, bool) or (typical and 'spectrum' in cfg):
+        msg = 'Для таблицы 36 выберите типовой режим без пользовательской циклограммы.'
+        if check:
+            check('Типовой режим', 'pending', msg)
+        return dict(available=False, complete=False, reason=msg, trace=[],
+                    checks=[dict(title='Типовой режим', status='pending', detail=msg)])
+    if method in ('cycles','stresses'):
+        from gost_history import history_rating
+        return history_rating(p,c,b,torque,_case,step,check)
+    if 'spectrum' not in cfg and not typical:
         return _case(p, c, b, torque, step, check)
     trace, checks = [], []
     def record(title, status, detail):
@@ -107,7 +122,16 @@ def stage_rating(p, c, b, torque, step=None, check=None):
         qs, gammas = zip(*props)
         if any(q not in (6, 9) for q in qs):
             raise ValueError('Для циклограммы укажите подтверждённый показатель qF каждого материала.')
-        flanks = moments(cfg['spectrum'], torque, p['life'], p['speed'], c['u'], qs)
+        if typical:
+            from gost_regimes import RATIOS
+            if typical is not True or p['loadRegime'] not in RATIOS or 'spectrum' in cfg:
+                raise ValueError('Для табл. 36 выберите режим 0…V и очистите пользовательскую циклограмму.')
+            coeff=RATIOS[p['loadRegime']]
+            cycles=60*p['speed']*p['life']
+            sides=(1,-1) if p['loadDirection']=='reversing' else (1,)
+            flanks=[dict(sign=sign,hours=p['life'],cycles=[cycles,cycles/c['u']],TH=torque*coeff[0],TF=[torque*coeff[1 if q==6 else 2] for q in qs],maxTorque=torque) for sign in sides]
+        else:
+            flanks = moments(cfg['spectrum'], torque, p['life'], p['speed'], c['u'], qs)
         if len(flanks) > 1 and None in gammas:
             raise ValueError('Для двусторонней нагрузки не определён γA материала.')
     except (ValueError, KeyError, TypeError, OverflowError) as error:
@@ -119,10 +143,18 @@ def stage_rating(p, c, b, torque, step=None, check=None):
     yas = []
     for i, gamma in enumerate(gammas):
         reduced = [s['TF'][i] / s['YN'][i] for s in flanks]
-        yas.append(1. if len(reduced) == 1 else 1 - gamma * min(reduced) / max(reduced))
+        yas.append(p['YA'] if typical and p['loadDirection']=='manual' else 1. if len(reduced) == 1 else 1 - gamma * min(reduced) / max(reduced))
     source = 'ГОСТ 21354–87, приложение 3, п. 2.1–2.2, с. 65 (приближённый контакт)'
-    for i, row in enumerate(cfg['spectrum'], 1):
+    if typical:
+        source='ГОСТ 21354–87, прил. 10, п. 4, табл. 36'
+    for i, row in enumerate(cfg.get('spectrum',[]), 1):
         emit(f'Ступень циклограммы {i}', 'Ti = Tном · ti', f"ti={row['torqueRatio']}; доля времени={row['timeFraction']}", torque*row['torqueRatio'], 'Н·м', source)
+    if 'spectrum' in cfg:
+        from gost_regimes import nearest_regime
+        for side in flanks:
+            near=nearest_regime(cfg['spectrum'])[side['sign']]
+            side['nearestRegime']=near
+            emit('Сопоставление с типовым режимом '+('прямого' if side['sign']==1 else 'обратного')+' хода','RMS по 100 уровням T/Tmax',f"Ближайший режим {near['regime']}, расчёт использует введённую циклограмму.",near['rms'],'','Прил. 10, формулы 57–59; численное сравнение эмпирических функций')
     for i, ya in enumerate(yas, 1):
         emit(f'YA{i} при реверсе', 'YA=1−γA min(TFE/YN; T′FE/Y′N)/max(…); при одной стороне YA=1',
              ' / '.join(f"{s['TF'][i-1]:.7g} Н·м при YN={s['YN'][i-1]:.7g}" for s in flanks), ya, '', 'Табл. 13, п. 10.6–10.6.3')
@@ -131,7 +163,7 @@ def stage_rating(p, c, b, torque, step=None, check=None):
         label = 'прямой ход' if side['sign'] > 0 else 'обратный ход'
         for mode, t, ya in [('H', side['TH'], yas[0]), ('F1', side['TF'][0], yas[0]), ('F2', side['TF'][1], yas[1])]:
             q = 3 if mode == 'H' else qs[int(mode[1])-1]
-            emit(f'Эквивалентный момент {mode}, {label}', 'TE = (Σ |Ti|^q Ni / Σ Ni)^(1/q)',
+            emit(f'Эквивалентный момент {mode}, {label}', 'TE = μT · Tном' if typical else 'TE = (Σ |Ti|^q Ni / Σ Ni)^(1/q)',
                  f"q={q}; N₁={side['cycles'][0]:.9g}; N₂={side['cycles'][1]:.9g}", t,'Н·м',source)
             rp = {**base,'life':side['hours'],'YA':ya,'startup':peak/t}
             if mode == 'H' and cfg.get('subsurface') and cfg.get('materials'):
@@ -180,3 +212,62 @@ def stage_rating(p, c, b, torque, step=None, check=None):
     out.update(mandatoryPending=any(r.get('mandatoryPending') for _,_,r in cases), complete=all(ch['status']=='pass' for ch in checks), checks=checks, trace=trace,
                spectrum=dict(flanks=flanks,YA=yas,peak=peak,governing={key:name for key,(name,_) in governing.items()}))
     return out
+
+def conditions_issue(conditions, *, appendix):
+    fields = {'ambientC', 'closed', 'standardRack', 'specialRules'}
+    if (not isinstance(conditions, dict) or set(conditions) != fields
+            or type(conditions['ambientC']) not in (float, int) or not math.isfinite(conditions['ambientC'])
+            or any(type(conditions[k]) is not bool for k in ('closed', 'standardRack', 'specialRules'))):
+        return 'Укажите температуру, тип корпуса, исходный контур и наличие специальных отраслевых правил.'
+    if conditions['specialRules'] or not conditions['standardRack']:
+        return 'Область применения ГОСТ требует стандартной рейки и отсутствия специальных отраслевых правил.'
+    if appendix and (not conditions['closed'] or not -40 <= conditions['ambientC'] <= 100):
+        return 'Для приложения 1 требуется закрытый корпус и температура окружающего воздуха −40…+100 °C.'
+    return None
+
+
+def stage_rating(p, c, b, torque, step=None, check=None):
+    cfg = p.get('gost',{})
+    if 'roots' in cfg:
+        message = ('Поправки по фактической переходной кривой, радиусу корня и шлифовочной '
+                   'ступеньке требуют проверки по табл. 13, пп. 6 и 12.')
+        if check:
+            check('Геометрия корня', 'pending', message)
+        return dict(available=False, complete=False, mandatoryPending=True, reason=message,
+                    trace=[], checks=[dict(title='Геометрия корня', status='pending', detail=message)])
+    if 'conditions' in cfg:
+        msg = conditions_issue(cfg['conditions'], appendix='basic' not in cfg)
+        if msg:
+            if check:
+                check('Область применения', 'pending', msg)
+            return dict(available=False, complete=False, reason=msg, trace=[],
+                        checks=[dict(title='Область применения', status='pending', detail=msg)])
+        p={**p,'gost':{k:v for k,v in cfg.items() if k!='conditions'}}
+        cfg=p['gost']
+    if 'basic' in cfg:
+        from gost_basic import basic_rating
+        if set(cfg)-{'basic','oil','halfLoadShare','criteria','faceFactorsConfirmed','surfaceConfirmed','peakProbabilityFactor','peakProbabilityFactorConfirmed'} or 'lifeLimitHours' in (cfg.get('criteria') if isinstance(cfg.get('criteria'),dict) else {}):
+            msg='Основная методика использует указанные отдельно коэффициенты и ресурс. Допустимы испытания trials для критериев вероятности.'
+            if check: check('Основные зависимости ГОСТ','pending',msg)
+            return dict(available=False,complete=False,reason=msg,checks=[dict(title='Основные зависимости ГОСТ',status='pending',detail=msg)],trace=[])
+        if 'criteria' not in cfg: return basic_rating(p,c,b,torque,cfg['basic'],step,check)
+    if 'criteria' not in cfg:
+        return _rated_load(p,c,b,torque,step,check)
+    from gost_criteria import add_criteria
+    stripped = {**p,'gost':{k:v for k,v in cfg.items() if k!='criteria'}}
+    r=basic_rating(stripped,c,b,torque,cfg['basic'],step,check) if 'basic' in cfg else _rated_load(stripped,c,b,torque,step,check)
+    if not r.get('available'):
+        return r
+    def emit(title,formula,sub,value,unit,source):
+        r['trace'].append(dict(title=title,formula=formula,substitution=sub,value=value,unit=unit,source=source))
+        if step: step('8. Критерии ресурса и надёжности',title,formula,sub,value,unit,source)
+    def verify(title,status,detail):
+        r['checks'].append(dict(title=title,status=status,detail=detail))
+        if check: check(title,status,detail)
+    try:
+        r['criteria']=add_criteria(r,cfg['criteria'],stripped,lambda life: _rated_load({**stripped,'life':life},c,b,torque),emit,verify)
+    except (ValueError,ArithmeticError) as error:
+        verify('Данные для дополнительных критериев','pending',str(error))
+        r['mandatoryPending']=True
+    r['complete']=all(x['status']=='pass' for x in r['checks'])
+    return r

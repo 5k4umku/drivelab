@@ -4,6 +4,7 @@ from bisect import bisect_left
 
 from coefficients import REGIMES
 from gost_geometry import tooth_form_factor
+from gost_spectrum import conditions_issue
 from gost_materials import material_properties
 from rating import bending_life, contact_life
 
@@ -131,6 +132,28 @@ def _life_inputs(p, c, b, torque):
     return out
 
 
+def _history_flanks(history, passports):
+    """One physical operating point per loaded flank gives an unambiguous sizing load."""
+    sides = history['sides'].values() if 'sides' in history else [history]
+    flanks = []
+    for side in sides:
+        levels = side['levels']
+        points = {(row['speed'], row['torque']) for row in levels}
+        if len(points) != 1:
+            raise ValueError('Раздел 5: для меняющегося момента или частоты на одной стороне '
+                             'расчётная нагрузка по истории требует отдельного обоснования.')
+        members = side['members']
+        cycles = [member['contact']['cycles'] for member in members]
+        nf = members[0]['bending']['cycles']
+        if min(*cycles, nf) <= 0:
+            raise ValueError('Раздел 5: по истории не определены циклы контактной или изгибной выносливости.')
+        level = levels[0]
+        yn = bending_life(nf, passports[0]['qF'])
+        flanks.append(dict(sign=level['sign'], cycles=cycles, YN=[yn],
+                           TH=level['torque'], TF=[level['torque']]))
+    return flanks
+
+
 def _project_design(p, c, b, torque, rating):
     cfg = p.get('gost',{}).get('design',{})
     allowed = {'scheme','hardPair','psiBd','psiBa','centerDistance','width','KHbeta','KFbeta','YFS1','reversing'}
@@ -145,7 +168,20 @@ def _project_design(p, c, b, torque, rating):
         raise ValueError('Проектировочные коэффициенты шеврона относятся к паре с равной нагрузкой полушевронов')
     if c.get('m',1)<1 or c.get('v',0)>25 or not p.get('gost',{}).get('oil',True) or p.get('alpha',20)!=20:
         raise ValueError('Геометрия или режим работы выходит за область ГОСТ 21354–87')
+    gost = p.get('gost', {})
+    if 'conditions' in gost:
+        issue = conditions_issue(gost['conditions'], appendix=True)
+        if issue:
+            raise ValueError(issue)
+    historical = p.get('gost', {}).get('spectrumMethod') in ('cycles', 'stresses')
+    if historical and not rating.get('history'):
+        raise ValueError('Раздел 5: отсутствует подтверждённая история нагрузок. '
+                         + rating.get('reason', 'Проверьте режим и исходные данные.'))
+    if 'roots' in p.get('gost', {}):
+        raise ValueError('Раздел 5: влияние фактической геометрии корня на YFS требует подтверждения.')
     if not rating.get('available'):
+        if rating.get('reasonCode') != 'missingDynamicMeasurements':
+            raise ValueError(rating.get('reason', 'Требуется уточнить исходные данные для раздела 5.'))
         rating = _life_inputs(p,c,b,torque)
     u = _positive(c['u'],'u')
     aw = _positive(cfg.get('centerDistance',c.get('aW',c.get('a'))),'aw')
@@ -159,7 +195,7 @@ def _project_design(p, c, b, torque, rating):
            else _positive(cfg.get('psiBd',p.get('psiBd',b*(u+1)/(2*aw))),'ψbd'))
     passports = rating.get('materialProperties') or [
         dict(sigmaHlim=p[f'sigmaH{i}'], SH=p['SH'], sigmaFlimb0=p[f'sigmaF{i}'],
-             NHlim=p[f'NHG{i}']*1e6, homogeneous=True) for i in (1,2)]
+             NHlim=p[f'NHG{i}']*1e6, homogeneous=True, qF=6) for i in (1,2)]
     if 'scheme' in cfg:
         if 'KHbeta' in cfg or 'KFbeta' in cfg:
             raise ValueError('Выберите схему черт. 13а/б или задайте оба коэффициента вручную')
@@ -184,6 +220,8 @@ def _project_design(p, c, b, torque, rating):
     if 'reversing' in cfg and type(cfg['reversing']) is not bool:
         raise ValueError('Признак реверсивной нагрузки должен быть логическим')
     spectrum = rating.get('spectrum',{}).get('flanks',[])
+    if historical:
+        spectrum = _history_flanks(rating['history'], passports)
     reverse = len(spectrum)>1 if spectrum else p.get('loadDirection')=='reversing' or (
         p.get('loadDirection','manual')=='manual' and p.get('YA',1)<1)
     if 'reversing' in cfg:
@@ -218,6 +256,10 @@ def _project_design(p, c, b, torque, rating):
     def add(title, formula, value, unit, point, substitution):
         result['trace'].append(dict(title=title,formula=formula,value=value,unit=unit,
                                     source='ГОСТ 21354–87, прил. 1, '+point,substitution=substitution))
+    for case in cases:
+        for symbol in ('T2H', 'T2F'):
+            add(f"{symbol}, {case['side']}", 'T₂ = T₁ u', case[symbol], 'Н·м',
+                'пп. 5.1.3, 5.2.4', f"{case['side']}, u={u:.7g}, T₂={case[symbol]:.7g} Н·м")
     add('KHβ для предварительных размеров','KHβ(ψbd, схема, HV)',kh,'','п. 5.1.4',f'{origin}, ψbd={psi:.6g}')
     add('KFβ для предварительных размеров','KFβ(ψbd, схема, HV)',kf,'','п. 5.2.5',f'{origin}, ψbd={psi:.6g}')
     add('Допускаемое σHP для проектирования','σHPi=0,9 σHlimi ZNi/SHi',h['HP'],'МПа','пп. 5.1.5–5.1.6',
