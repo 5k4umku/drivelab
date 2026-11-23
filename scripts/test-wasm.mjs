@@ -185,3 +185,18 @@ for (const loads of [[2], [1, -2], [1, 2]]) {
   }
 }
 console.log("Раздел 5: фактические моменты, реверс и ограничение переменной нагрузки проверены.");
+
+const rootExample = JSON.parse(await readFile(resolve(root, "examples/gost-root-fatigue.json"), "utf8")).input;
+const rootsStage = calculateStage(rootExample);
+assert.equal(rootsStage.rating.available, true, rootsStage.rating.reason);
+for (const [i, value] of [.938966447, .912194723].entries()) {
+  assert.ok(Math.abs(rootsStage.rating.roots[i].Ydelta - value) < 1e-8);
+  assert.ok(rootsStage.trace.some(s => s.title === "Yδ" + (i+1) && Math.abs(s.value - value) < 1e-8));
+}
+for (const radius of [7, 7.0001]) {
+  const measured = {radiusMm: radius, uncertaintyMm: 0, section: "Нормальное сечение", evidence: "Контроль"};
+  const result = calculateStage({...rootExample, gost: {...rootExample.gost, roots: [measured, measured]}});
+  const expected = radius === 7 ? [.874891363, .874891363] : [.942374152, .926780523];
+  expected.forEach((value,i) => assert.ok(Math.abs(result.rating.roots[i].Ydelta - value) < 1e-8));
+}
+console.log("Yδ обоих венцов и порог 7 мм проверены в WASM.");

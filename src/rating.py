@@ -8,6 +8,7 @@ from coefficients import face_factors, REGIMES
 from gost_materials import material_properties
 from gost_special import helical_allowable, spur_bending
 from gost_subsurface import deep_contact, reduced_radius
+from gost_root import root_parameters
 from gost_geometry import external_geometry, pair_stiffness, tooth_form_factor
 from gost_dynamics import MissingDynamicMeasurements, resonance_state, resonant_factor, subcritical_forces
 from gost_manufacture import manufacture_factors
@@ -85,6 +86,10 @@ def normative_rating(p, c, b, T, step=None, check=None):
         if key == 'materials':
             if not isinstance(value, list) or len(value) != 2:
                 return reject('gost.materials: нужны два паспорта, сначала шестерня, затем колесо')
+        elif key == 'roots':
+            if (not isinstance(value, list) or len(value) != 2 or not any(isinstance(v, dict) for v in value)
+                    or any(v is not None and not isinstance(v, dict) for v in value)):
+                return reject('gost.roots: задайте данные шестерни и колеса, null оставляет базовый Yδ')
         elif key == 'subsurface':
             if not isinstance(value,list) or len(value)!=2 or any(x is not None and not isinstance(x,dict) for x in value):
                 return reject('gost.subsurface: укажите два объекта параметров слоя или null')
@@ -418,6 +423,7 @@ def _normative_rating(p, c, b, T, step=None, check=None):
     emit('KH','KH=KA KHv KHβ KHα',kh,page='формула33',substitution=f'{n(ka)}×{n(khv)}×{n(khb)}×{n(kha)}')
     emit('KF','KF=KA KFv KFβ KFα',kf,page='формула38',substitution=f'{n(ka)}×{n(kfv)}×{n(kfb)}×{n(kfa)}')
     emit('σH', 'σH=ZE ZH Zε √[Ft KH (u+1)/(bw d₁ u)]', sigma_h, 'МПа', 'формулы31–33, с.14',f'{n(ze)}×{n(zh)}×{n(zeps)}×√({n(Ft)}×{n(kh)}×({n(c["u"])}+1)/({n(face_width)}×{n(c["d1"])}×{n(c["u"])}))')
+    root_data = [None, None]
     hp, fp, hpmax, fpmax, zn, yn = [], [], [], [], [], []
     speed1 = p['speed']
     zr = p['ZR']
@@ -475,6 +481,20 @@ def _normative_rating(p, c, b, T, step=None, check=None):
             return rejected('Диаметр вне области используемых масштабных зависимостей')
         yz = mat['YZ']
         ydelta = 1.082 - .172 * math.log10(m)
+        if 'roots' in cfg and cfg['roots'][idx] is not None:
+            row = mat['row']
+            strength = cfg['materials'][idx].get('yieldStrength') if materials else None
+            if not materials and (p.get(f'treatment{i}') != 'У' or not p.get('materialConfirmed')):
+                row = 'не подтверждена'
+            try:
+                root = root_parameters(cfg['roots'][idx], module=m, zv=(zv1,zv2)[idx],
+                                       x=(x1,x2)[idx], tool=tools[idx], material_row=row,
+                                       yield_strength=strength, spur=gear_type=='spur')
+            except ValueError as error:
+                return rejected(f'Корень венца {i}: {error}')
+            root_data[idx] = root
+            ydelta = root['Ydelta']
+
         flim = mat['sigmaFlimb0'] * mat['YT'] * yz * mat['Yg'] * mat['Yd'] * ya
         hp.append(mat['sigmaHlim'] / mat['SH'] * zi * zr * zv * zx)
         fp.append(flim / mat['SF'] * yi * ydelta * yr * yx)
@@ -505,7 +525,13 @@ def _normative_rating(p, c, b, T, step=None, check=None):
                        else 'YFS=3,61+0,53x²+(25,3−37,6x)/zᵥ')
         emit(f'YFS{i}', yfs_formula, yfs[idx], page='табл. 13, п. 6, с. 31–32',
              substitution=f"x={n((x1,x2)[idx])}; zᵥ={n((zv1,zv2)[idx])}")
-        emit(f'Yδ{i}','Yδ=1.082−.172 lg(mn)',ydelta,page='табл.13.12',substitution=f'1.082−.172×lg({n(m)})')
+        if root_data[idx]:
+            proof = mat.get('evidence') or root['materialEvidence']
+            emit(f'Yδ{i}',root['formula'],ydelta,page='табл. 13, п. 12, с. 36',
+                 substitution=f"mn={n(m)} мм, ρFn={n(root['radius'])} мм, χ={n(root['gradient'])} мм⁻¹, "
+                              f"{root['radiusSource']}, {root['evidence']}. Материал {row}: {proof}")
+        else:
+            emit(f'Yδ{i}','Yδ=1.082−.172 lg(mn)',ydelta,page='табл.13.12',substitution=f'1.082−.172×lg({n(m)})')
         emit(f'YX{i}','YX=1.05−.000125 d',yx,page='табл.13.14',substitution=f'1.05−.000125×{n(d)}')
         emit(f'ZX{i}','ZX=1 при d<700; иначе √(1.07−.0001d)',zx,page='табл.11.7',substitution=f'd={n(d)}<700 →1' if d<700 else f'√(1.07−.0001×{n(d)})')
         emit(f'YZ{i}','YZ=0,8 для отливки; 0,9 для проката; 1 для поковки и штамповки',yz,page='табл.13.10.3')
@@ -657,6 +683,7 @@ def _normative_rating(p, c, b, T, step=None, check=None):
                 KH=kh, KF=kf, KHv=khv, KFv=kfv, KHalpha=kha, KFalpha=kfa,
                 KHbeta=khb, KFbeta=kfb, epsilonBeta=eb, faceWidth=face_width,
                 loadShare=load_share, margins=margins, assumptions=assumptions,
+                **({'roots': root_data} if 'roots' in cfg else {}),
                 faceAuto=face_auto, dynamics=dyn, manufacture=process, materialProperties=materials, zonalContact=zones, spurBending=spur_result,
                 mandatoryPending=mandatory_pending,subsurface=depth_results,
                 trace=local_trace, checks=local_checks, source=PDF_URL)

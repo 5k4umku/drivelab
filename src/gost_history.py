@@ -85,6 +85,13 @@ def _one_side(p,c,b,torque,case,step=None,check=None):
             emit(f"Ступень {level['id']}, σH",'σH(Ti,ni)',f"Ti={level['torque']:.7g} Н·м; ni={level['speed']:.7g} об/мин; Nc1={level['cycles']:.7g}",
                  r['sigmaH'],'МПа')
         r0=results[0]
+        if r0.get('roots'):
+            for entry in r0['trace']:
+                if entry['title'] in ('Yδ1', 'Yδ2'):
+                    trace.append(entry)
+                    if step:
+                        step('7. Расчёт по уровням нагрузки', entry['title'], entry['formula'],
+                             entry['substitution'], entry['value'], entry['unit'], entry['source'])
         props=r0.get('materialProperties') or [
             dict(qF=6,NHlim=p[f'NHG{i}']*1e6,sigmaHlim=p[f'sigmaH{i}'],homogeneous=True)
             for i in (1,2)]

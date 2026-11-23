@@ -65,3 +65,15 @@ for (const stress of [stage.rating.h, ...stage.rating.fs, stage.rating.hmax, ...
 const pending = stage.checks.find(item => item.status === "pending");
 assert.ok(runs.includes(pending.detail));
 console.log("Приложение 11: в DOCX сверены шесть напряжений и условие применимости.");
+
+const rootPair = JSON.parse(execFileSync("python", ["-B", "src/engine.py", "examples/gost-root-fatigue.json"], {
+  cwd: root, encoding: "utf8",
+}));
+const rootDoc = await D.Packer.toBuffer(makeReport(rootPair, D));
+const rootRuns = JSON.parse(execFileSync("python", ["-B", "-c", readDocument], {input: rootDoc}));
+for (const [i, yd] of [.938966447, .912194723].entries()) {
+  assert.ok(rootRuns.includes("Yδ" + (i + 1)));
+  assert.ok(rootRuns.some(line => line?.includes(fmt(yd, 6))));
+  assert.ok(rootRuns.some(line => line?.includes(rootPair.input.gost.roots[i].evidence)));
+}
+console.log("В DOCX проверены коэффициенты Yδ и обоснования обоих венцов.");

@@ -177,7 +177,7 @@ def _project_design(p, c, b, torque, rating):
     if historical and not rating.get('history'):
         raise ValueError('Раздел 5: отсутствует подтверждённая история нагрузок. '
                          + rating.get('reason', 'Проверьте режим и исходные данные.'))
-    if 'roots' in p.get('gost', {}):
+    if 'roots' in gost and not rating.get('roots'):
         raise ValueError('Раздел 5: влияние фактической геометрии корня на YFS требует подтверждения.')
     if not rating.get('available'):
         if rating.get('reasonCode') != 'missingDynamicMeasurements':

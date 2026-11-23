@@ -37,72 +37,79 @@ def nominal_radius(module, zv, x, tool):
     if not min_z <= zv <= 500 or not -.6 <= x <= max_x:
         raise ValueError('Параметры вне диапазона черт. 12. Введите измеренный радиус переходной кривой')
     if tool == 'standard':
-        ratio = .417 + (4.32 - 10.34*x + 6.03*x*x) / zv - .071*x + .036*x*x
+        if x != 0:
+            raise ValueError('Для черт. 12а при x≠0 требуется измеренный радиус')
+        ratio = .417 + 4.32 / zv
     else:
         ratio = .424 + (7.27 - 16.8*x + 9.81*x*x) / zv - .019*x - .004*x*x
     return _number(module*ratio, 'радиуса по черт. 12')
 
 
-def _test_ratio(test, label):
-    if not isinstance(test, dict) or set(test) != {'actualStress','referenceStress'}:
-        raise ValueError(f'{label}: нужны local-напряжения actualStress и referenceStress в одинаковых условиях')
-    return _number(test['actualStress'], 'σ фактического корня') / _number(test['referenceStress'], 'σ базового корня')
-
-
-def root_parameters(config, *, module, zv, x, tool, material_row, yield_strength):
-    """Опциональная поправка к YFS и уточнение Yδ для отдельного венца."""
+def root_parameters(config, *, module, zv, x, tool, material_row, yield_strength, spur):
+    """Fatigue support factor for one documented root section (table 13.12)."""
     _number(module, 'mn')
-    out = dict(tipFactor=1., singleFactor=1., radius=None, radiusSource=None, gradient=None,
-               grindingStep=False, evidence='', Ydelta=1.082-.172*math.log10(module),
-               gradientBranch='basic', formula='Yδ=1,082−0,172 lg(mn)')
-    if config is None:
-        return out
-    if not isinstance(config, dict):
-        raise ValueError('Для корня требуется объект с параметрами')
-    keys = {'grindingStep','refineGradient','pointsMm','radiusMm','tipTest','singleTest','evidence'}
-    if set(config)-keys:
-        raise ValueError('Неизвестные поля геометрии корня: '+', '.join(sorted(set(config)-keys)))
-    step = config.get('grindingStep', False)
-    refine = config.get('refineGradient', False)
-    if not isinstance(step, bool) or not isinstance(refine, bool):
-        raise ValueError('Признаки ступеньки и уточнения градиента должны быть логическими')
-    measured = 'pointsMm' in config or 'radiusMm' in config
-    evidence = config.get('evidence', '')
-    if not isinstance(evidence, str) or ((step or measured) and not evidence.strip()):
-        raise ValueError('Укажите источник измерений радиуса или напряжений в корне')
-    out['evidence'] = evidence
-    if step:
-        out.update(grindingStep=True, tipFactor=_test_ratio(config.get('tipTest'), 'tipTest'),
-                   singleFactor=_test_ratio(config['singleTest'], 'singleTest') if 'singleTest' in config else None)
-    elif 'tipTest' in config or 'singleTest' in config:
-        raise ValueError('Измерения для шлифовочной ступеньки требуют grindingStep=true')
-    if 'pointsMm' in config and 'radiusMm' in config:
-        raise ValueError('Выберите один источник радиуса: результат измерения или три точки')
+    keys = {'radiusMm', 'uncertaintyMm', 'section', 'evidence', 'curveConfirmed',
+            'materialEvidence', 'baseHardened', 'grindingStep', 'toolProfile', 'yieldStrength'}
+    if not isinstance(config, dict) or set(config) - keys:
+        raise ValueError('Неизвестный формат описания корня или неподтверждённая поправка')
+    if config.get('grindingStep', False) is not False:
+        raise ValueError('Поправка на шлифовочную ступеньку требует отдельного обоснования')
+    evidence = config.get('evidence')
+    if not isinstance(evidence, str) or not evidence.strip():
+        raise ValueError('Укажите протокол измерения или источник проверки номинального профиля')
+    measured = 'radiusMm' in config
+    if 'toolProfile' in config and (measured or tool != 'protuberance'):
+        raise ValueError('Параметры инструмента 12б относятся только к номинальному радиусу по этому рисунку')
     if measured:
-        if 'pointsMm' in config:
-            out.update(radius=measured_radius(config['pointsMm']), radiusSource='три точки профиля')
-        else:
-            out.update(radius=_number(config['radiusMm'], 'ρFn'), radiusSource='протокол измерения')
-    elif refine:
-        if step:
-            raise ValueError('Для градиента в корне со ступенькой требуется фактический ρFn')
-        out.update(radius=nominal_radius(module,zv,x,tool), radiusSource='черт. 12а' if tool=='standard' else 'черт. 12б')
-    if not refine:
-        return out
-    radius = out['radius']
-    out['gradient'] = grad = 2.3/radius
-    if radius <= 7:
-        out['gradientBranch'] = 'radiusAtMost7'
-    elif material_row in ('Т1','16.1','17.7'):
-        yield_strength = _number(yield_strength, 'предела текучести σт, МПа')
-        out.update(Ydelta=(1-.07*math.log10(module))*(1+grad**.55*10**(-.47-yield_strength/875)),
-                   gradientBranch='unhardenedRoot', formula='Yδ=(1−0,07 lg mn)(1+χ⁰·⁵⁵·10^(−0,47−σт/875))')
-    elif material_row.startswith(('14.','15.','17.')):
-        out.update(Ydelta=.84*(1+grad**.55*10**-.72), gradientBranch='hardenedRoot',
-                   formula='Yδ=0,84(1+χ⁰·⁵⁵·10⁻⁰·⁷²)')
+        section = config.get('section')
+        if not isinstance(section, str) or not section.strip() or 'curveConfirmed' in config:
+            raise ValueError('Укажите положение опасного сечения в нормальном профиле')
+        radius = _number(config['radiusMm'], 'радиуса в мм')
+        delta = _number(config.get('uncertaintyMm'), 'погрешности в мм', positive=False)
+        if delta < 0 or radius - delta <= 0 or radius - delta <= 7 < radius + delta:
+            raise ValueError('Интервал измерения должен быть положительным и однозначно определять ветвь порога 7 мм')
+        source = f'{section}, погрешность ±{delta:g} мм'
     else:
-        out['gradientBranch'] = 'materialWithoutRefinement'
-    return out
+        if (not spur or config.get('curveConfirmed') is not True
+                or 'uncertaintyMm' in config or 'section' in config):
+            raise ValueError('Нужна прямая пара и подтверждение инструмента и точки на соответствующей кривой черт. 12')
+        if tool == 'protuberance':
+            profile = config.get('toolProfile')
+            required = dict(alphaDeg=20, haStar=1, clearanceStar=.4, radiusStar=.4, protuberanceStar=.05)
+            if (profile != required or any(type(v) not in (int, float) for v in profile.values())):
+                raise ValueError('Для черт. 12б подтвердите геометрию инструмента по чертежу')
+        radius = nominal_radius(module, zv, x, tool)
+        figure = '12а' if tool == 'standard' else '12б'
+        source = f'черт. {figure}, z={zv:g}, x={x:g}'
+    grad = 2.3/radius
+    branch = 'radiusAtMost7'
+    value = 1.082 - .172*math.log10(module)
+    formula = 'Yδ=1,082−0,172 lg(mn)'
+    material_source = config.get('materialEvidence', '')
+    if not isinstance(material_source, str):
+        raise ValueError('Источник подтверждения материала должен быть текстом')
+    if 'yieldStrength' in config and material_row != 'Т1':
+        raise ValueError('Для табличного паспорта задайте σт в самом паспорте материала')
+    if radius > 7:
+        if material_row == 'Т1' and not material_source.strip():
+            raise ValueError('Подтвердите улучшение основания и предел текучести по паспорту материала')
+        hardened = material_row not in ('Т1', '16.1', '17.7')
+        if (material_row.startswith('17.') or 'baseHardened' in config) and config.get('baseHardened') is not hardened:
+            raise ValueError('Подтвердите охват основания слоем в соответствии со строкой таблицы 17')
+        if material_row in ('16.1', '17.7', 'Т1'):
+            strength = _number(config.get('yieldStrength') if material_row == 'Т1' else yield_strength, 'предела текучести σт, МПа')
+            value = (1-.07*math.log10(module))*(1+grad**.55*10**(-.47-strength/875))
+            branch, formula = 'unhardenedRoot', 'Yδ=(1−0,07 lg mn)(1+χ⁰·⁵⁵·10^(−0,47−σт/875))'
+            source += f', σт={strength:g} МПа'
+        elif material_row in ('14.1','14.2','14.3','14.4','14.5','15.1','15.2',
+                              '17.1','17.2','17.3','17.4','17.5','17.6'):
+            value = .84*(1+grad**.55*10**-.72)
+            branch, formula = 'hardenedRoot', 'Yδ=0,84(1+χ⁰·⁵⁵·10⁻⁰·⁷²)'
+        else:
+            raise ValueError('Для материала этой группы уточнение по табл. 13, п. 12 не установлено')
+    return dict(radius=radius, radiusSource=source, gradient=grad, gradientBranch=branch,
+                Ydelta=value, formula=formula, evidence=evidence, materialRow=material_row,
+                materialEvidence=material_source)
 
 
 def correct_spur_phases(result, roots):

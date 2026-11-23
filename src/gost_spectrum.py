@@ -228,13 +228,6 @@ def conditions_issue(conditions, *, appendix):
 
 def stage_rating(p, c, b, torque, step=None, check=None):
     cfg = p.get('gost',{})
-    if 'roots' in cfg:
-        message = ('Поправки по фактической переходной кривой, радиусу корня и шлифовочной '
-                   'ступеньке требуют проверки по табл. 13, пп. 6 и 12.')
-        if check:
-            check('Геометрия корня', 'pending', message)
-        return dict(available=False, complete=False, mandatoryPending=True, reason=message,
-                    trace=[], checks=[dict(title='Геометрия корня', status='pending', detail=message)])
     if 'conditions' in cfg:
         msg = conditions_issue(cfg['conditions'], appendix='basic' not in cfg)
         if msg:
