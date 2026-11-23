@@ -177,6 +177,22 @@ function ringGeometry(c, width, type, hand) {
   return geo;
 }
 export class GearViewer {
+  get playing() {
+    return this._playing;
+  }
+  set playing(value) {
+    this._playing = !!value;
+    // Keep the existing playback control truthful after a direct scene gesture.
+    const button = this.container?.closest(".viewer-card")?.querySelector(".playback .play");
+    if (button) {
+      button.textContent = this._playing ? "Ⅱ" : "▶";
+      button.setAttribute("aria-label", this._playing ? "Приостановить вращение" : "Включить вращение");
+    }
+    this.container?.dispatchEvent(new CustomEvent("scene-playback-change", {
+      bubbles: true,
+      detail: { playing: this._playing },
+    }));
+  }
   constructor(container) {
     this.container = container;
     this.playing = !matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -229,7 +245,7 @@ export class GearViewer {
       this.result &&
       (!this.visibleWidth || Math.abs(w - this.visibleWidth) > 40)
     )
-      this.view(this.viewMode || "iso");
+      this.view(this.viewMode || "iso", true);
     this.visibleWidth = w;
   }
   update(result) {
@@ -250,7 +266,12 @@ export class GearViewer {
       child.geometry?.dispose();
       child.material?.dispose();
     }
-    const offset = (c.d2 / 2 - c.d1 / 2) / 2; // camera centered on overall envelope, not the pitch point
+    // Center the actual addendum envelope, including unequal profile shifts.
+    const r1 = c.da1 / 2,
+      r2 = (c.outerDiameter || c.da2) / 2,
+      left = Math.min(-c.a / 2 - r1, c.a / 2 - r2),
+      right = Math.max(-c.a / 2 + r1, c.a / 2 + r2),
+      offset = (left + right) / 2;
     this.gears = [];
     for (const i of [1, 2]) {
       const group = new THREE.Group();
@@ -343,34 +364,77 @@ export class GearViewer {
     this.pinionPhase = c.meshType === "internal" ? Math.PI : 0;
     this.gears[0].rotation.z = this.pinionPhase;
     this.gears[1].rotation.z = this.phase;
-    this.extent = c.outerDiameter || c.da1 / 2 + c.a + c.da2 / 2;
-    this.view(this.viewMode || "iso");
+    // Include the axial shaft symbols: a wide pair must also fit in iso view.
+    this.extent = Math.max(right - left, 2 * r1, 2 * r2, result.b * 1.9);
     prepareSceneEffects(this);
+    this.view(this.viewMode || "iso", true);
     this.resize();
   }
-  view(mode) {
+  view(mode, preserveMotion = false) {
+    if (!preserveMotion) this.pauseMotion?.();
     this.viewMode = mode;
-    const s = this.extent || 450;
+    this.effectsPanel?.querySelectorAll('[data-effect="front"], [data-effect="iso"], [data-effect="contact"]').forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.effect === mode));
+    });
+    this.container?.closest?.(".viewer-card")?.querySelectorAll('.viewer-top [id$="-front"], .viewer-top [id$="-iso"]').forEach((button) => {
+      const active = button.id.endsWith(`-${mode}`);
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    const box = new THREE.Box3().setFromObject(this.model),
+      center = box.isEmpty() ? new THREE.Vector3() : box.getCenter(new THREE.Vector3()),
+      size = box.getSize(new THREE.Vector3());
+    let s = Math.max(size.x, size.y, size.z, this.extent || 450);
+    if (mode === "contact" && this.result) {
+      const r = this.result,
+        pair = r.chosen ? r : r.stages[0].result,
+        c = pair.chosen;
+      if (r.chosen) center.set(this.gears[0].position.x +
+        (c.meshType === "internal" ? -1 : 1) * (c.dw1 ?? c.d1) / 2, 0, 0);
+      else {
+        const g = r.gears.find((gear) => gear.side === 1);
+        center.set(g.x + g.offset[0], g.y + g.offset[1], g.z);
+      }
+      s = Math.max(pair.b * 1.4, c.m * 12);
+    }
     const aspect =
       this.container.clientWidth / Math.max(1, this.container.clientHeight) ||
       1;
-    const distance = (s * 1.8) / Math.min(1, Math.max(0.35, aspect));
+    const direction = (mode === "front"
+      ? new THREE.Vector3(0, 0, 1)
+      : new THREE.Vector3(-0.6, 0.65, 1.25)).normalize();
+    if (mode === "contact" || box.isEmpty())
+      box.setFromCenterAndSize(center, new THREE.Vector3(s, s, s));
+    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), direction).normalize(),
+      up = new THREE.Vector3().crossVectors(direction, right),
+      tangent = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    let distance = 0;
+    // Fit every corner in camera coordinates, including depth. A scalar
+    // multiplier of the largest world-axis span clips diagonal/wide assemblies.
+    for (const x of [box.min.x, box.max.x])
+      for (const y of [box.min.y, box.max.y])
+        for (const z of [box.min.z, box.max.z]) {
+          const delta = new THREE.Vector3(x, y, z).sub(center),
+            depth = delta.dot(direction);
+          distance = Math.max(distance,
+            depth + Math.abs(delta.dot(right)) / (tangent * aspect),
+            depth + Math.abs(delta.dot(up)) / tangent);
+        }
+    distance = Math.max(distance * 1.12, 1);
+    this.controls.minDistance = Math.max(.1, s * .02);
+    this.controls.maxDistance = distance * 20;
     this.camera.far = Math.max(10000, distance * 10);
     this.camera.updateProjectionMatrix();
     moveCamera(
       this,
-      new THREE.Vector3(),
-      mode === "front"
-        ? new THREE.Vector3(0, 0, distance)
-        : new THREE.Vector3(-0.6, 0.65, 1.25)
-            .normalize()
-            .multiplyScalar(distance),
+      center,
+      direction.multiplyScalar(distance).add(center),
     );
     this.camera.up.set(0, 1, 0);
     this.controls.update();
   }
   animate(now) {
-    const dt = Math.min((now - this.last) / 1000, 0.05);
+    const dt = Math.max(0, (now - this.last) / 1000);
     this.last = now;
     if (this.result && this.playing && !document.hidden && this.inViewport) {
       this.theta =
@@ -384,7 +448,7 @@ export class GearViewer {
           this.result.chosen.u;
     }
     this.tickEffects(dt);
-    this.controls.update();
+    this.controls.update(dt);
     if (!document.hidden && this.inViewport)
       this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this.animate);

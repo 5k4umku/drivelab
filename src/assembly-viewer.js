@@ -1,4 +1,4 @@
-import { prepareSceneEffects, moveCamera } from "./scene-effects.js";
+import { prepareSceneEffects } from "./scene-effects.js";
 import * as THREE from "three";
 import { GearViewer, gearGeometry } from "./viewer.js";
 
@@ -132,16 +132,21 @@ export class AssemblyViewer extends GearViewer {
       coupling.position.z = s.zMin - 12;
       this.rotors[0].add(coupling);
     }
-    const b = result.bounds;
-    const cameraBounds = [...b];
+    const b = result.bounds,
+      clearance = result.project.housing?.clearance ?? 20,
+      mode = result.project.housing?.mode ?? "contour";
+    // A visible housing can extend well beyond a compact gear train.
+    const cameraBounds = b.map((value, i) =>
+      mode === "hidden" ? value : value + (i % 2 ? clearance : -clearance),
+    );
     if (result.motor) {
       const s = result.shafts[0],
         m = result.motor;
-      cameraBounds[4] = Math.min(b[4], s.zMin - m.frame * 2.4 - 25);
-      cameraBounds[0] = Math.min(b[0], s.x - m.frame);
-      cameraBounds[1] = Math.max(b[1], s.x + m.frame);
-      cameraBounds[2] = Math.min(b[2], s.y - m.frame);
-      cameraBounds[3] = Math.max(b[3], s.y + m.frame);
+      cameraBounds[4] = Math.min(cameraBounds[4], s.zMin - m.frame * 2.4 - 25);
+      cameraBounds[0] = Math.min(cameraBounds[0], s.x - m.frame);
+      cameraBounds[1] = Math.max(cameraBounds[1], s.x + m.frame);
+      cameraBounds[2] = Math.min(cameraBounds[2], s.y - m.frame);
+      cameraBounds[3] = Math.max(cameraBounds[3], s.y + m.frame);
     }
     this.center = new THREE.Vector3(
       (cameraBounds[0] + cameraBounds[1]) / 2,
@@ -154,8 +159,6 @@ export class AssemblyViewer extends GearViewer {
       cameraBounds[5] - cameraBounds[4],
       100,
     );
-    const clearance = result.project.housing?.clearance ?? 20,
-      mode = result.project.housing?.mode ?? "contour";
     const box = new THREE.BoxGeometry(
       b[1] - b[0] + 2 * clearance,
       b[3] - b[2] + 2 * clearance,
@@ -192,45 +195,25 @@ export class AssemblyViewer extends GearViewer {
     this.envelope.position.copy(housingCenter);
     this.envelope.visible = mode !== "hidden" && (this.showEnvelope ?? true);
     this.model.add(this.envelope);
-    this.view(this.viewMode || "iso");
     prepareSceneEffects(this);
+    this.view(this.viewMode || "iso", true);
     this.resize();
   }
-  view(mode) {
-    this.viewMode = mode;
-    const center = this.center || new THREE.Vector3(),
-      s = this.extent || 450;
-
-    const aspect =
-      this.container.clientWidth / Math.max(1, this.container.clientHeight) ||
-      1;
-    const distance = (s * 1.8) / Math.min(1, Math.max(0.35, aspect));
-    this.camera.far = Math.max(10000, distance * 10);
-    this.camera.updateProjectionMatrix();
-    const targetPosition = center
-      .clone()
-      .add(
-        mode === "front"
-          ? new THREE.Vector3(0, 0, distance)
-          : new THREE.Vector3(-0.7, 0.65, 1)
-              .normalize()
-              .multiplyScalar(distance),
-      );
-    moveCamera(this, center, targetPosition);
-    this.camera.up.set(0, 1, 0);
-    this.controls.update();
+  view(mode, preserveMotion = false) {
+    super.view(mode, preserveMotion);
   }
   animate(now) {
-    const dt = Math.min((now - this.last) / 1000, 0.05);
+    const dt = Math.max(0, (now - this.last) / 1000);
     this.last = now;
     if (this.result && this.playing && !document.hidden && this.inViewport) {
-      this.theta += (dt * this.scale * 2 * Math.PI) / 60;
+      const step = (dt * this.scale * 2 * Math.PI) / 60;
       for (let i = 0; i < this.rotors.length; i++)
         this.rotors[i].rotation.z =
-          this.theta * this.result.shafts[i].signedSpeed;
+          (this.rotors[i].rotation.z + step * this.result.shafts[i].signedSpeed) %
+          (2 * Math.PI);
     }
     this.tickEffects(dt);
-    this.controls.update();
+    this.controls.update(dt);
     if (!document.hidden && this.inViewport)
       this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this.animate);

@@ -52,6 +52,8 @@ export class SchematicEditor {
   }
   setEnabled(enabled) {
     this.enabled = enabled;
+    this.root.querySelector("#scheme-undo").disabled = !enabled || !this.undo.length;
+    this.root.querySelector("#scheme-redo").disabled = !enabled || !this.redo.length;
     this.root.querySelector("#scheme-save").disabled = !enabled;
     this.root.querySelector("#scheme-canvas").inert = !enabled;
     this.root.querySelector("#scheme-inspector").inert = !enabled;
@@ -64,6 +66,7 @@ export class SchematicEditor {
     this.onChange(p);
   }
   restore(forward) {
+    if (!this.enabled) return;
     const from = forward ? this.redo : this.undo,
       to = forward ? this.undo : this.redo;
     if (!from.length) return;
@@ -140,8 +143,8 @@ export class SchematicEditor {
       .forEach((el) =>
         el.classList.toggle("active", el.dataset.plane === this.mode),
       );
-    this.root.querySelector("#scheme-undo").disabled = !this.undo.length;
-    this.root.querySelector("#scheme-redo").disabled = !this.redo.length;
+    this.root.querySelector("#scheme-undo").disabled = !this.enabled || !this.undo.length;
+    this.root.querySelector("#scheme-redo").disabled = !this.enabled || !this.redo.length;
     const body = this.mode === "axial" ? this.axial() : this.front();
     this.root.querySelector("#scheme-canvas").innerHTML = body;
     this.inspector();
@@ -178,7 +181,7 @@ export class SchematicEditor {
         : `<rect class="house" x="${X(minZ - clearance)}" y="58" width="${(maxZ - minZ + 2 * clearance) * scale}" height="${H - 95}" rx="10"/><text x="${X(minZ) - 10}" y="74" class="dimension">Корпус · габаритный эскиз</text>`;
     for (const s of d.shafts) {
       const y = Y(s.index);
-      content += `<text x="20" y="${y - 7}" style="font-weight:bold">Вал ${s.index + 1}</text><text x="20" y="${y + 10}" class="dimension">${fmt(s.speed, 1)} мин⁻¹</text><line class="axis" x1="${X(lo)}" y1="${y}" x2="960" y2="${y}"/><line class="shaft" x1="${X(s.zMin)}" y1="${y}" x2="${X(s.zMax)}" y2="${y}"/>`;
+      content += `<text x="20" y="${y - 7}" style="font-weight:bold">Вал ${s.index + 1}</text><text x="20" y="${y + 10}" class="dimension">${fmt(s.signedSpeed ?? s.speed, 1)} мин⁻¹</text><line class="axis" x1="${X(lo)}" y1="${y}" x2="960" y2="${y}"/><line class="shaft" x1="${X(s.zMin)}" y1="${y}" x2="${X(s.zMax)}" y2="${y}"/>`;
       for (const name of ["A", "B"]) {
         const x = X(s[name].z),
           fixed = name === s.locating;
@@ -199,13 +202,17 @@ export class SchematicEditor {
       const x = X(g.z),
         y = Y(g.shaft),
         w = Math.max(12, g.width * scale),
-        kind = d.stages[g.stage].result.input.gearType;
+        stage = d.stages[g.stage],
+        kind = stage.result.input.gearType,
+        hand = (stage.hand === "left" ? -1 : 1) *
+          (g.side === 2 && stage.result.input.meshType !== "internal" ? -1 : 1);
+      // Z runs horizontally here. A chevron changes hand at the face midpoint.
       const tooth =
         kind === "spur"
-          ? `M${x - 3} ${y - 24} V${y + 24} M${x + 3} ${y - 24} V${y + 24}`
+          ? `M${x - w * 0.4} ${y - 8} H${x + w * 0.4} M${x - w * 0.4} ${y + 8} H${x + w * 0.4}`
           : kind === "helical"
-            ? `M${x - w * 0.3} ${y + 23} L${x + w * 0.3} ${y - 23}`
-            : `M${x - w * 0.35} ${y - 23} L${x + w * 0.35} ${y} L${x - w * 0.35} ${y + 23}`;
+            ? `M${x - w * 0.4} ${y + hand * 18} L${x + w * 0.4} ${y - hand * 18}`
+            : `M${x - w * 0.4} ${y - hand * 18} L${x} ${y + hand * 18} L${x + w * 0.4} ${y - hand * 18}`;
       content += `<g data-drag="gear" data-index="${g.stage}" data-pair="${g.stage}" tabindex="0" role="button" aria-label="Переместить зацепление ${g.stage + 1} по валам"><rect class="venet" x="${x - w / 2}" y="${y - 26}" width="${w}" height="52" rx="2"/><path d="${tooth}" fill="none" stroke="#267f64"/><text x="${x}" y="${y - 33}" text-anchor="middle">z${g.side}=${d.stages[g.stage].result.chosen["z" + g.side]}</text></g>`;
     }
     if (motor) {
@@ -249,7 +256,7 @@ export class SchematicEditor {
       content += `<g ${s.index ? `data-drag="axis" data-index="${s.index - 1}" tabindex="0" role="button" aria-label="Изменить направление ступени ${s.index}"` : ""}><circle cx="${X(s.x)}" cy="${Y(s.y)}" r="15" fill="${s.index ? "#1a7a60" : "#284858"}" stroke="#fff" stroke-width="2"/><text x="${X(s.x)}" y="${Y(s.y) + 4}" text-anchor="middle" style="fill:white;font-weight:bold">${s.index + 1}</text></g>`;
     }
     content +=
-      '<text x="20" y="580" class="dimension">Пунктир — делительные окружности. Номера обозначают валы. Осевое положение показано на развёртке.</text>';
+      '<text x="20" y="580" class="dimension">Пунктир — начальные окружности. Номера обозначают валы. Осевое положение показано на развёртке.</text>';
     return this.svg(content, W, H);
   }
   bind() {
@@ -262,6 +269,7 @@ export class SchematicEditor {
       return p.matrixTransform(svg.getScreenCTM().inverse());
     };
     svg.onpointerdown = (event) => {
+      if (!this.enabled || drag || event.button !== 0) return;
       const el = event.target.closest("[data-drag]");
       if (!el) return;
       const target = {
@@ -283,7 +291,7 @@ export class SchematicEditor {
       event.preventDefault();
     };
     svg.onpointermove = (event) => {
-      if (!drag) return;
+      if (!drag || event.pointerId !== drag.id) return;
       const p = point(event),
         dx = p.x - drag.start.x,
         t = drag.target;
@@ -310,13 +318,15 @@ export class SchematicEditor {
       this.root.querySelector("#scheme-coordinate").value = drag.value;
     };
     svg.onpointerup = (event) => {
-      if (!drag) return;
+      if (!drag || event.pointerId !== drag.id) return;
       const d = drag;
       drag = null;
       svg.releasePointerCapture(event.pointerId);
       if (Math.abs(d.value - d.initial) > 0.01) this.move(d.target, d.value);
+      else this.draw();
     };
-    svg.onpointercancel = () => {
+    svg.onpointercancel = (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
       drag = null;
       this.draw();
     };
