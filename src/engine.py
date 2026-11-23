@@ -77,12 +77,19 @@ def validate(p):
         if isinstance(default,bool):
             if not isinstance(value,bool): errors.append(f'{key}: требуется логическое значение')
         elif isinstance(default,(int,float)):
-            if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or value<0:
+            if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or (value<0 and key not in ('x1','x2')):
                 errors.append(f'{key}: требуется конечное неотрицательное число')
         elif not isinstance(value,str) or len(value)>1000: errors.append(f'{key}: некорректный текст')
     if errors: return errors
+    if 'peakLoad' in p.get('gost',{}):
+        from gost_load import startup_factor
+        try: startup_factor(p['gost']['peakLoad'],p['KA'])
+        except ValueError as error: errors.append(str(error))
     if p['gearType'] not in ('spur','helical','herringbone'): errors.append('Неизвестный тип передачи')
     if p['meshType'] not in ('external','internal'): errors.append('Неизвестный вид зацепления')
+    if p['geometryMode'] not in ('design','given'): errors.append('Выберите подбор или проверку заданной геометрии.')
+    if (p['x1'] or p['x2']) and (p['meshType']=='internal' or p['geometryMode']!='given'):
+        errors.append('Для смещений профиля выберите внешнее зацепление и режим «По чертежу».')
     if p['meshType'] == 'internal':
         if not .1 <= p['manualModule'] <= 50 or not 1 <= p['manualWidth'] <= 2000 or not 1 <= p['ringRim'] <= 500: errors.append('Внутренняя пара: mn=0,1…50 мм, b=1…2000 мм, обод=1…500 мм')
         if any(p[k] != int(p[k]) or not 12 <= p[k] <= 1000 for k in ('manualZ1','manualZ2')) or p['manualZ2'] <= p['manualZ1']: errors.append('Внутренняя пара: целые 12 ≤ z₁ < z₂ ≤ 1000')
@@ -91,7 +98,7 @@ def validate(p):
     if p['loadRegime'] not in (*REGIMES, 'manual'): errors.append('Режим нагрузки: 0–V или ручной')
     if p['loadRegime'] != 'manual' and p['mF'] not in (6,9): errors.append('Для табл.35 qF должен быть 6 или 9')
     if p['loadDirection'] not in ('manual','oneway','reversing'): errors.append('Неизвестный тип нагрузки')
-    if p['loadDirection'] == 'reversing' and (p['treatment1'] != 'У' or p['treatment2'] != 'У'): errors.append('Автоматический реверс реализован для У / У')
+    if p['loadDirection'] == 'reversing' and not p.get('gost',{}).get('materials') and (p['treatment1'] != 'У' or p['treatment2'] != 'У'): errors.append('Автоматический реверс реализован для У / У')
     if p['materialMode'] not in ('table','custom'): errors.append('Неизвестный способ задания материала')
     if p['selectionPolicy'] not in ('precision','zubil'): errors.append('Подбор: точность или Zubil')
     if p['rootFinish'] not in ('cut','polished'): errors.append('Обработка корня: нарезание/шлифование или полирование')
@@ -127,6 +134,10 @@ def calculate(p, compare=False):
         try: p=material_pair(p)
         except ValueError as error: return dict(errors=[str(error)],trace=[],checks=[],variants=[])
     if p['meshType'] == 'internal': return calculate_internal(p)
+    if p['geometryMode'] == 'given':
+        from given_pair import calculate_given
+        try: return calculate_given(p, rating_inputs)
+        except (ValueError, OverflowError) as error: return dict(errors=[str(error)],trace=[],checks=[],variants=[])
     trace,checks=[],[]
     def step(section,title,formula,sub,value,unit='',source='Семинары: бланк и таблицы Т1–Т9'):
         trace.append(dict(section=section,title=title,formula=formula,substitution=sub,value=value,unit=unit,source=source))

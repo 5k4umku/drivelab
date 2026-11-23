@@ -93,6 +93,10 @@ def prepare(p):
         add('KA', value, 'KA=таблица(режим двигателя; режим машины)',
             f'Строка {row+1}, столбец {col+1}' + ('; нижняя граница «и выше», требуется обоснование' if row >= 2 and col == 3 else ''),
             'ГОСТ 21354–87, приложение4, табл.21–23; вне резонанса')
+    if 'peakLoad' in p.get('gost',{}):
+        from gost_load import startup_factor
+        spec=p['gost']['peakLoad']
+        add('startup',startup_factor(spec,p['KA']),'KAS по диапазону табл. 24 и примечаниям 2–4',str(spec),'ГОСТ 21354–87, прил. 4, табл. 24, с. 69–70')
     if p.get('autoSurface'):
         grade = p['accuracy']
         polished = p.get('rootFinish','cut') == 'polished'

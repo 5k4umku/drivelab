@@ -20,7 +20,7 @@ function profile(c, i) {
     invPitch = Math.tan(alpha) - alpha;
   const points = [],
     pitch = (2 * Math.PI) / z,
-    half = Math.PI / (2 * z);
+    half = (Math.PI / 2 + 2 * (c["x" + i] || 0) * Math.tan(Math.PI / 9)) / z;
   const inv = (r) => {
     const a = Math.acos(Math.min(1, rb / r));
     return Math.tan(a) - a;

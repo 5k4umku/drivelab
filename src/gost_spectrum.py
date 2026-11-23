@@ -6,6 +6,7 @@
 import math
 
 from rating import bending_life, normative_rating
+from gost_load import face_distribution
 
 
 def moments(rows, torque, hours, rpm, ratio, exponents):
@@ -42,10 +43,42 @@ def moments(rows, torque, hours, rpm, ratio, exponents):
     return result
 
 
+
+def _case(p, c, b, torque, step=None, check=None):
+    cfg=p.get('gost',{})
+    # prepare() уже перенёс пуск по табл. 24 в startup до расчёта размеров.
+    cleaned={k:v for k,v in cfg.items() if k not in ('peakLoad','face27')}
+    if 'face27' not in cfg:
+        return normative_rating({**p,'gost':cleaned},c,b,torque,step,check)
+    try:
+        if p.get('faceMode','manual')!='manual' or any(k in cfg for k in ('KHbeta','KFbeta','KHbeta0')):
+            raise ValueError('Табл. 27 является отдельным способом расчёта. Выберите ручной источник по ширине и удалите переопределения KHβ/KFβ.')
+        if p['gearType']=='herringbone' and cfg.get('halfLoadShare',.5)!=.5:
+            raise ValueError('Для неравномерно нагруженных полушевронов табл. 27 требует отдельных данных опор и сил.')
+        ft=2000*torque/c['d1']
+        work=face_distribution(cfg['face27'],c,b,ft,p['gearType'],p['accuracy'])
+        peak=face_distribution(cfg['face27'],c,b,ft*p['startup'],p['gearType'],p['accuracy'])
+    except (ValueError,TypeError,KeyError,ArithmeticError) as err:
+        message=str(err)
+        if check: check('Распределение нагрузки по табл. 27','pending',message)
+        return dict(available=False,complete=False,reason=message,trace=[],checks=[dict(title='Табл. 27',status='pending',detail=message)])
+    params=dict(KHbeta=work['KHbeta'],KFbeta=work['KFbeta'],peakKHbeta=peak['KHbeta'])
+    r=normative_rating({**p,'gost':cleaned,'_face27':params},c,b,torque,step,check)
+    for key in ('T','O'):
+        end=work[key]
+        sub='; '.join(f'{name}={end[name]:.7g}' for name in ('KT','Kf','Ks','Kb','Kfc','Kbc','KQ'))
+        entry=dict(title=f'KHβ торца {key}', formula='KHβ=1+(KT+Kf+Ks+Kb+Kfc+Kbc+KQ)Kw',
+                   substitution=f"{sub}; Kw={work['KW']:.7g}", value=end['KHbeta'], unit='',source='Приложение 6, табл. 27, черт. 16–24')
+        r['trace'].append(entry)
+        if step: step('7. Распределение по ширине венца',entry['title'],entry['formula'],entry['substitution'],entry['value'],'',entry['source'])
+    r['face27']=work
+    return r
+
+
 def stage_rating(p, c, b, torque, step=None, check=None):
     cfg = p.get('gost', {})
     if 'spectrum' not in cfg:
-        return normative_rating(p, c, b, torque, step, check)
+        return _case(p, c, b, torque, step, check)
     trace, checks = [], []
     def record(title, status, detail):
         checks.append(dict(title=title, status=status, detail=detail))
@@ -66,6 +99,7 @@ def stage_rating(p, c, b, torque, step=None, check=None):
             from gost_materials import material_properties
             passports = [material_properties(x, c['m']) for x in cfg['materials']]
             props = [(x['qF'], x['gammaA']) for x in passports]
+            base['gost']['materials'] = [{**m, 'muF':1.} for m in cfg['materials']]
             if len(props) != 2:
                 raise ValueError('Нужны два паспорта материалов.')
         else:
@@ -100,14 +134,19 @@ def stage_rating(p, c, b, torque, step=None, check=None):
             emit(f'Эквивалентный момент {mode}, {label}', 'TE = (Σ |Ti|^q Ni / Σ Ni)^(1/q)',
                  f"q={q}; N₁={side['cycles'][0]:.9g}; N₂={side['cycles'][1]:.9g}", t,'Н·м',source)
             rp = {**base,'life':side['hours'],'YA':ya,'startup':peak/t}
-            r = normative_rating(rp, c, b, t)
+            if mode == 'H' and cfg.get('subsurface') and cfg.get('materials'):
+                subsurface=cfg['subsurface']
+                if isinstance(subsurface,list) and len(subsurface)==2:
+                    rp['gost']={**rp['gost'],'subsurface':[{**s,'cycles':side['cycles'][i]} if isinstance(s,dict) and str(cfg['materials'][i].get('row')) in ('16.5','16.6') else s for i,s in enumerate(subsurface)]}
+            r = _case(rp, c, b, t)
             if not r.get('available'):
                 return reject(f"{label}, {mode}: {r.get('reason','исходные данные вне области метода')}")
             cases.append((mode, label, r))
     # H и F имеют разные эквивалентные моменты. Сравниваем только соответствующие
     # компоненты, затем возвращаем определяющую сторону для каждого критерия.
-    groups = {'H':('H','Hmax'), 'F1':('F1','Fmax1'), 'F2':('F2','Fmax2')}
-    governing = {key: min(((label,r) for m,label,r in cases if m==mode), key=lambda item:item[1]['margins'][key])
+    depth_keys = tuple(k for k in cases[0][2]['margins'] if k.startswith('Hdepth'))
+    groups = {'H':('H','Hmax',*depth_keys), 'F1':('F1','Fmax1'), 'F2':('F2','Fmax2')}
+    governing = {key: min(((label,r) for m,label,r in cases if m==mode), key=lambda item:-math.inf if item[1]['margins'][key] is None else item[1]['margins'][key])
                  for mode, keys in groups.items() for key in keys}
     margins = {key:r['margins'][key] for key,(_,r) in governing.items()}
     out = dict(governing['H'][1])
@@ -133,8 +172,11 @@ def stage_rating(p, c, b, torque, step=None, check=None):
         for x in r['trace']:
             emit(f"{label}, {labels[mode]} · {x['title']}", x['formula'], x['substitution'], x['value'], x['unit'], x['source'])
     for key,(label,r) in governing.items():
+        if margins[key] is None:
+            record(f'Запас {key} по циклограмме', 'pending', f'{label}, допускаемое напряжение не установлено для данного материала.')
+            continue
         record(f'Запас {key} по циклограмме', 'pass' if margins[key] >= 1 else 'fail',
                f'{label}, отношение допускаемого напряжения к расчётному {margins[key]:.6g} при требовании ≥ 1.')
-    out.update(complete=all(ch['status']=='pass' for ch in checks), checks=checks, trace=trace,
+    out.update(mandatoryPending=any(r.get('mandatoryPending') for _,_,r in cases), complete=all(ch['status']=='pass' for ch in checks), checks=checks, trace=trace,
                spectrum=dict(flanks=flanks,YA=yas,peak=peak,governing={key:name for key,(name,_) in governing.items()}))
     return out

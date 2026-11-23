@@ -155,7 +155,7 @@ def calculate_assembly(project, active_index=0, _iteration=0):
                  contact_sign*(-signs*c['Ft']*direction[0] - c['Fr']*direction[1]), signs*hand*c['Fa']]
         for side in (1, 2):
             center = axis if side == 1 else next_axis
-            pitch = c[f'd{side}']/2
+            pitch = c.get(f'dw{side}', c[f'd{side}'])/2
             gears.append(dict(stage=i, shaft=i+side-1, side=side, x=center[0], y=center[1], z=z,
                               width=r['b'], radius=(c['outerDiameter'] if internal and side == 2 else c[f'da{side}'])/2, rootRadius=c[f'df{side}']/2,
                               innerRadius=c['da2']/2 if internal and side == 2 else 0,
@@ -256,7 +256,7 @@ def calculate_assembly(project, active_index=0, _iteration=0):
     check('Прочность валов и ресурс подшипников', 'pending',
           'Выполнена статическая схема двух опор. Номера подшипников, концентрация напряжений, усталость, прогибы, масса деталей и внешние нагрузки на концы валов в эту модель не входят.')
     check('Область конструктора', 'pending',
-          'Последовательные цилиндрические зацепления на параллельных валах, x₁ = x₂ = 0. Для внутренней пары доступны заданная геометрия и кинематика; прочность и полная интерференция не подтверждены. Разветвление мощности и упругие многоопорные валы требуют других моделей.')
+          'Последовательные цилиндрические зацепления на параллельных валах. Для внутренней пары доступны заданная геометрия и кинематика; прочность и полная интерференция не подтверждены. Разветвление мощности и упругие многоопорные валы требуют других моделей.')
     check('Баланс мощности', abs(power-project['power']*efficiency) < 1e-8,
           f"Pвыход = {f(power)} кВт; потери = {f(project['power']-power)} кВт; ηΣ = {f(efficiency)}.")
     target_ratio = math.prod(s['result']['input']['ratio'] for s in stages)

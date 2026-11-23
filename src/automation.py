@@ -11,7 +11,8 @@ from tolerances import fit
 
 
 def margin(rating):
-    return min(rating['margins'].values()) if rating and rating.get('available') else None
+    values = rating.get('margins', {}).values() if rating and rating.get('available') else []
+    return min(values) if values and all(x is not None for x in values) else None
 
 
 def inspect(result,load_percent=10):
@@ -26,7 +27,8 @@ def inspect(result,load_percent=10):
     if not rt.get('available'):
         tip('Прочность не подтверждена',rt.get('reason','Вне реализованного профиля.'),'ГОСТ 21354–87: область применения','pending')
     else:
-        weak=min(rt['margins'],key=rt['margins'].get)
+        measured={k:v for k,v in rt['margins'].items() if v is not None}
+        weak=min(measured,key=measured.get)
         tip('Определяющая проверка: '+weak,
             f"Минимальное отношение допускаемого напряжения к расчётному: {rt['margins'][weak]:.3f}. "+
             ('Увеличьте размер или рабочую ширину и сравните варианты.' if rt['margins'][weak]<1 else 'Численный запас есть; проверьте неподтверждённые условия изготовления.'),
@@ -63,6 +65,7 @@ def search(project,index=0):
     if base['errors']: raise ValueError('; '.join(base['errors']))
     r=base['stages'][index]['result']; p=r['input']
     if p['meshType']=='internal': raise ValueError('Для внутреннего зацепления автоподбор по прочности ещё не реализован.')
+    if p.get('geometryMode') == 'given': raise ValueError('Размеры заданы по чертежу. Для перебора размеров выберите проектировочный подбор.')
     centers=[r10(r['a']*.999999)]
     for _ in range(2): centers.append(r10(centers[-1]*1.001))
     widths=sorted({p['psiBd'],min(1.2,p['psiBd']+.2)})
@@ -79,7 +82,7 @@ def search(project,index=0):
                     rows.append(dict(patch=patch,eligible=False,reason='; '.join(a['errors']),a=center,b=None,margin=None));continue
                 sr=a['stages'][index]['result']; c=sr['chosen'];rt=sr['rating'] or {}
                 failed=[f"Ступень {j+1}: {x['title']}" for j,stage in enumerate(a['stages']) for x in stage['result']['checks'] if x['status']=='fail']
-                unverified=[f"Ступень {j+1}: прочность вне реализованной области" for j,stage in enumerate(a['stages']) if not (stage['result'].get('rating') or {}).get('available')]
+                unverified=[f"Ступень {j+1}: прочность вне реализованной области" for j,stage in enumerate(a['stages']) if not (stage['result'].get('rating') or {}).get('available') or stage['result']['rating'].get('mandatoryPending')]
                 assembly_failed=[x['title'] for x in a['checks'] if x['status']=='fail']
                 score=margin(rt)
                 eligible=score is not None and score>=1 and not failed and not assembly_failed and not unverified
