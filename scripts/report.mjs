@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { makeReport, makeAssemblyReport } from "../src/report.js";
+import { siteVersion } from "../src/version.js";
 // This CLI is optional. Browser export uses the vendored dependency.
 const [input, output, library] = process.argv.slice(2);
 if (!input || !output || !library)
@@ -16,4 +17,4 @@ await writeFile(
     result.stages ? makeAssemblyReport(result, docx) : makeReport(result, docx),
   ),
 );
-console.log("Report saved: " + output);
+console.log("DriveLab " + siteVersion + " · " + output);

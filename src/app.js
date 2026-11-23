@@ -1,3 +1,4 @@
+import { siteVersion } from "./version.js";
 import { fmt, escapeHTML as e, statusLabel } from "./format.js";
 import { GearViewer } from "./viewer.js";
 import { createBuilder, projectFromInput } from "./builder.js";
@@ -12,7 +13,14 @@ const toolCalls = new Map();
 let toolSequence = -1;
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
+const versionLabel = document.querySelector(".runtime-info [data-site-version]") ?? $("#engine-status")?.nextElementSibling;
+if (versionLabel) versionLabel.textContent = "Вычисления на устройстве · v" + siteVersion;
 const defaults = await fetch("src/defaults.json").then((r) => r.json());
+// Entry may switch back to the presentation while the workbench files are loading.
+const workbenchRoot = document.querySelector("#workbench");
+if (workbenchRoot?.hidden)
+  await new Promise(resolve => workbenchRoot.addEventListener("drivelab-show-workbench", resolve, { once: true }));
+
 let inputs = { ...defaults },
   result = null,
   sequence = 0,

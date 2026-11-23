@@ -92,6 +92,7 @@ export function createBuilder({
   root.innerHTML = `<div class="page-heading"><div><h1>Компоновка редуктора</h1></div><button class="outline" id="assembly-export" disabled>↓ Отчёт по редуктору</button></div>
   <div class="builder-toolbar"><span>Начать с шаблона</span><button data-template="1">1 ступень</button><button data-template="2">2 ступени</button><button data-template="3">3 ступени</button><button data-template="seminar">Семинар №11</button><button data-pdm="spur">ПДМ · прямые зубья</button><button data-pdm="helical">ПДМ · косые зубья</button><button data-pdm="herringbone">ПДМ · шеврон</button></div>
   <div class="builder-global" id="builder-global"></div>
+  <div class="stage-primary-fields"></div>
   <div id="assembly-error" class="error-banner" hidden role="alert"></div>
   <div id="assembly-metrics" class="metrics"></div>
   <div class="assembly-scene viewer-card"><div class="viewer-top"><span><i></i> КОМПОНОВКА · ПАРАЛЛЕЛЬНЫЕ ВАЛЫ</span><div><button class="viewer-button" id="assembly-front">Спереди</button><button class="viewer-button active" id="assembly-iso">3D</button><button class="viewer-button active" id="assembly-envelope" aria-pressed="true">Габариты</button></div></div><div id="assembly-view" aria-label="Трёхмерная компоновка редуктора"><div class="model-loading">Собираем редуктор…</div></div><div class="playback"><button id="assembly-play" class="play" aria-label="Приостановить редуктор">Ⅱ</button><label for="assembly-time">Масштаб времени</label><input id="assembly-time" type="range" min="0" max="100" value="12"><output id="assembly-time-value">0,012×</output></div><p class="model-footnote">Размеры венцов и положение опор связаны с расчётом. Светлое кольцо обозначает опору, которая фиксирует вал по оси. Контур показывает габариты, а не готовый корпус.</p></div>
@@ -243,6 +244,15 @@ export function createBuilder({
     </div><p class="field-note">Угол задаёт направление от оси шестерни к оси колеса. Автоматическое Z разводит соседние венцы с зазором 20 мм. При выборе Т5 коэффициенты пересчитываются по расположению венцов и опор. Формула ГОСТ настраивается в исходных данных ступени.</p><div class="builder-card-actions"><button class="outline" data-detail="${i}">Расчёт ступени ${i + 1} ↗</button><button class="quiet" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="Переместить ступень ${i + 1} выше">↑</button><button class="quiet" data-down="${i}" ${i === p.stages.length - 1 ? "disabled" : ""} aria-label="Переместить ступень ${i + 1} ниже">↓</button><button class="quiet danger" data-remove="${i}" ${p.stages.length === 1 ? "disabled" : ""}>Удалить ступень ${i + 1}</button></div></div></details>`,
       )
       .join("");
+    const primaryFields = root.querySelector(".stage-primary-fields");
+    const selectedCard = root.querySelector("#stage-editor .selected");
+    const primaryKeys = p.stages[active].input.meshType === "internal"
+      ? ["manualZ1", "manualZ2"]
+      : ["ratio", "efficiency"];
+    primaryFields.dataset.stage = String(active);
+    primaryFields.replaceChildren(...primaryKeys.map((key) =>
+      selectedCard.querySelector(`[data-key="${key}"]`).closest("label"),
+    ));
     root.querySelectorAll("[data-stage] [data-key]").forEach(
       (el) =>
         (el.onchange = () => {
@@ -427,8 +437,10 @@ export function createBuilder({
         )
         .join("");
       try {
-        if (!viewer)
+        if (!viewer) {
           viewer = new AssemblyViewer(root.querySelector("#assembly-view"));
+          root.dispatchEvent(new Event("assembly-view-ready"));
+        }
         viewer.update(data, getActive());
         syncPlay();
       } catch (error) {

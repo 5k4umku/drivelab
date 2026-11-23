@@ -17,17 +17,163 @@
     <link rel="stylesheet" href="src/builder.css" />
     <link rel="stylesheet" href="src/studio.css" />
     <link rel="stylesheet" href="src/future-workbench.css" />
+    <link rel="stylesheet" href="src/presentation.css" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
     <script defer src="vendor/docx-9.6.1.js"></script>
-    <script type="module" src="src/app.js"></script>
+    <script type="module" src="src/entry.js"></script>
   </head>
   <body>
-    <a class="skip" href="#main">К расчёту</a>
-    <div class="workspace">
+    <section id="product-intro" role="main" aria-labelledby="intro-title">
+      <header id="presentation" class="product-header">
+        <span class="product-brand"><i aria-hidden="true"></i>DriveLab</span>
+        <a class="product-next product-tour-link" href="#intro-features">Возможности</a>
+        <a class="product-enter" href="#constructor">К расчёту <span aria-hidden="true">↗</span></a>
+      </header>
+      <div class="product-story">
+        <figure class="product-figure" aria-label="Привод роликового конвейера и устройство редуктора">
+          <div data-presentation-scene></div>
+          <figcaption class="product-readout">
+            <span class="product-drive-caption">Привод роликов <b>Двигатель → редуктор → конвейер</b></span>
+            <span class="product-disconnect-caption">Соединения валов <b>Входная и выходная муфты</b></span>
+            <span class="product-open-caption">Условный корпус <b>Плоскость разъёма</b></span>
+            <span class="product-assembly-caption">Выходной вал <b>356 мин⁻¹</b></span>
+            <span class="product-mesh-caption">Первая ступень <b>20 и 44 зуба</b></span>
+            <span class="product-power-caption">Промежуточный вал <b>641 мин⁻¹</b></span>
+            <span class="product-exploded-caption">Компоновка <b>2 ступени · 3 вала</b></span>
+          </figcaption>
+          <p class="product-static-note" role="status">Статический вид привода</p>
+        </figure>
+        <section class="product-chapter" data-presentation-chapter="drive" aria-labelledby="intro-title">
+          <div class="product-copy">
+            <p class="product-chapter-name">Роликовый конвейер</p>
+            <h1 id="intro-title">Привод<br>в работе<span>.</span></h1>
+            <p class="product-caption">Двигатель вращает входной вал редуктора. Через две ступени момент передаётся роликам, которые перемещают раскалённую заготовку.</p>
+            <div class="product-range">
+              <label for="drive-speed">Скорость показа</label>
+              <output for="drive-speed" data-presentation-speed-value>1×</output>
+              <input id="drive-speed" data-presentation-speed type="range" min="0.25" max="1.5" step="0.05" value="1">
+            </div>
+            <a class="product-next" href="#intro-disconnect">К соединениям <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+        <section id="intro-disconnect" class="product-chapter" data-presentation-chapter="disconnect" aria-labelledby="disconnect-title" tabindex="-1">
+          <div class="product-copy">
+            <p class="product-chapter-name">Отсоединение</p>
+            <h2 id="disconnect-title">По осям валов<span>.</span></h2>
+            <p class="product-caption">Муфты размыкаются. Двигатель отходит от входного вала, конвейер — от выходного. Между ними остаётся редуктор.</p>
+            <a class="product-next" href="#intro-open">К корпусу <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+        <section id="intro-open" class="product-chapter" data-presentation-chapter="open" aria-labelledby="open-title" tabindex="-1">
+          <div class="product-copy">
+            <p class="product-chapter-name">Раскрытие корпуса</p>
+            <h2 id="open-title">Под крышкой<span>.</span></h2>
+            <p class="product-caption">Разведите половины демонстрационного корпуса. Внутри видны опоры валов и две рассчитанные зубчатые пары.</p>
+            <div class="product-range">
+              <label for="drive-cut">Раскрытие корпуса</label>
+              <output for="drive-cut" data-presentation-cut-value>0 %</output>
+              <input id="drive-cut" data-presentation-cut type="range" min="0" max="100" step="1" value="0">
+            </div>
+            <a class="product-next" href="#intro-assembly">К передаче <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+        <section id="intro-assembly" class="product-chapter" data-presentation-chapter="assembly" aria-labelledby="assembly-title" tabindex="-1">
+          <div class="product-copy">
+            <p class="product-chapter-name">Сборка</p>
+            <h2 id="assembly-title">Две ступени<span>.</span></h2>
+            <p class="product-caption">От входного вала до выходного. Проследите, как зубчатая передача меняет скорость и момент.</p>
+            <a class="product-next" href="#intro-mesh">К зацеплению <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+        <section id="intro-mesh" class="product-chapter" data-presentation-chapter="mesh" aria-labelledby="mesh-title" tabindex="-1">
+          <div class="product-copy">
+            <p class="product-chapter-name">Зацепление</p>
+            <h2 id="mesh-title">Зуб к зубу<span>.</span></h2>
+            <p class="product-caption">Шестерня передаёт колесу окружную силу. Радиальная составляющая раздвигает валы, осевая действует вдоль них.</p>
+            <a class="product-next" href="#intro-power">К пути мощности <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+        <section id="intro-power" class="product-chapter" data-presentation-chapter="power" aria-labelledby="power-title" tabindex="-1">
+          <div class="product-copy">
+            <p class="product-chapter-name">Путь мощности</p>
+            <h2 id="power-title">Через три вала<span>.</span></h2>
+            <p class="product-caption">В условном разрезе видны обе ступени. Колесо первой пары вращает шестерню второй на общем промежуточном валу. Вторая пара передаёт момент на выход.</p>
+            <a class="product-next" href="#intro-exploded">К разнесению <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+        <section id="intro-exploded" class="product-chapter" data-presentation-chapter="exploded" aria-labelledby="exploded-title" tabindex="-1">
+          <div class="product-copy">
+            <p class="product-chapter-name">Разнесение</p>
+            <h2 id="exploded-title">По деталям<span>.</span></h2>
+            <p class="product-caption">У каждой пары колёс своя плоскость зацепления. <span class="product-control-hint">Разведите детали вдоль валов, затем верните ползунок к нулю, чтобы собрать механизм.</span></p>
+            <div class="product-range">
+              <label for="product-separation">Разнесение</label>
+              <output for="product-separation" data-assembly-value>0 %</output>
+              <input id="product-separation" data-assembly-range type="range" min="0" max="100" value="0" step="1">
+            </div>
+            <a class="product-next" href="#intro-features">К возможностям <span aria-hidden="true">↓</span></a>
+          </div>
+        </section>
+      </div>
+      <section class="feature-tour" id="intro-features" data-feature-tour aria-labelledby="features-title" tabindex="-1">
+        <h2 id="features-title">Возможности<span>.</span></h2>
+        <div class="feature-story">
+          <div class="feature-console">
+            <div class="feature-selectors" role="group" aria-label="Раздел демонстрации">
+              <button type="button" data-feature-select="project">Проект</button>
+              <button type="button" data-feature-select="geometry">Геометрия</button>
+              <button type="button" data-feature-select="selection">Подбор</button>
+              <button type="button" data-feature-select="verification">Проверки</button>
+              <button type="button" data-feature-select="report">Отчёт</button>
+            </div>
+            <div class="feature-demo-frame">
+              <div class="feature-display" data-feature-screen role="group" aria-label="Демонстрация рабочего интерфейса"></div>
+              <span data-feature-pointer aria-hidden="true"></span>
+            </div>
+          </div>
+          <article class="feature-step" data-feature-step="project">
+            <h3>Проект и двигатель</h3>
+            <p>Задайте мощность и частоту двигателя, добавьте ступени и расположите валы и опоры. Выход одной ступени становится входом следующей.</p>
+          </article>
+          <article class="feature-step" data-feature-step="geometry">
+            <h3>От схемы к модели</h3>
+            <p>Разместите валы на схеме 2D и осмотрите зацепление в 3D. Сравните компоновку внешней и внутренней пар, откройте разрез и покажите векторы сил.</p>
+          </article>
+          <article class="feature-step" data-feature-step="selection">
+            <h3>Подбор и точность</h3>
+            <p>Сравните сочетания чисел зубьев в Zubil и посмотрите, как запас прочности зависит от момента. Для выбранной пары доступны степени точности и квалитеты IT.</p>
+          </article>
+          <article class="feature-step" data-feature-step="verification">
+            <h3>Проверки и ход расчёта</h3>
+            <p>Изучите результаты проверок по ГОСТ, режим нагрузки и реверс. В расчётном журнале откройте формулу и исходные значения выбранной ступени.</p>
+          </article>
+          <article class="feature-step" data-feature-step="report">
+            <h3>Схема, проект и отчёт</h3>
+            <p>Схему можно сохранить в SVG, а проект — в JSON. Откройте пример отчёта Word и пролистайте страницы с исходными данными, формулами и таблицами проверок.</p>
+            <button class="feature-report-open" data-feature-docx type="button" aria-controls="feature-reader">Посмотреть отчёт <span aria-hidden="true">↗</span></button>
+          </article>
+        </div>
+        <section id="feature-reader" data-feature-report-reader hidden tabindex="-1" aria-label="Страницы демонстрационного отчёта"></section>
+      </section>
+    </section>
+    <script type="module">
+      document.querySelector("#product-intro").addEventListener("click", (event) => {
+        const link = event.target.closest(".product-next");
+        if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        const chapter = document.getElementById(link.hash.slice(1));
+        if (!chapter) return;
+        event.preventDefault();
+        chapter.focus({ preventScroll: true });
+        chapter.scrollIntoView({ block: "start" });
+      });
+    </script>
+    <div id="workbench" class="workspace" hidden>
+      <a class="skip" href="#main">К рабочей области</a>
       <header class="topbar instrument-header">
-        <a class="instrument-brand" href="#constructor"><span aria-hidden="true">D</span>DriveLab</a>
+        <a class="instrument-brand" href="#presentation" aria-label="DriveLab — вернуться к презентации" title="Вернуться к презентации"><span aria-hidden="true">D</span>DriveLab</a>
+        <a class="return-presentation" href="#presentation"><span aria-hidden="true">←</span> К презентации</a>
         <nav id="project-nav" aria-label="Рабочие области">
           <a href="#constructor">Модель</a><a href="#overview">Ступень</a><a href="#checks">Проверки <b id="check-count">—</b></a>
           <details class="analysis-menu"><summary>Инструменты</summary><div>
@@ -304,7 +450,6 @@
           ><a href="#overview">Наверх ↑</a>
         </footer>
       </main>
-    </div>
     <dialog id="inputs-dialog">
       <form id="inputs-form">
         <div class="dialog-head">
@@ -330,6 +475,7 @@
       </form>
     </dialog>
     <div id="toast" role="status" aria-live="polite"></div>
-    <div class="runtime-info"><span id="engine-status">Загрузка Python…</span><span>Вычисления на устройстве · v0.6.0</span></div>
+    <div class="runtime-info"><span id="engine-status">Загрузка Python…</span><span data-site-version></span></div>
+    </div>
   </body>
 </html>

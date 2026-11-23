@@ -12,6 +12,7 @@ const types = {
   ".woff2": "font/woff2",
   ".wasm": "application/wasm",
   ".py": "text/plain; charset=utf-8",
+  ".png": "image/png",
   ".zip": "application/zip",
 };
 createServer(async (req, res) => {

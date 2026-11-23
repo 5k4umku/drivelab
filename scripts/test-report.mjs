@@ -55,11 +55,32 @@ const archive = await D.Packer.toBuffer(makeReport(stage, D));
 const readDocument = `
 import io, json, sys, zipfile
 from xml.etree import ElementTree as ET
+ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+      'm': 'http://schemas.openxmlformats.org/officeDocument/2006/math'}
 with zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())) as doc:
     xml = ET.fromstring(doc.read('word/document.xml'))
-print(json.dumps([node.text for node in xml.iter('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t')]))
+    footer = ET.fromstring(doc.read('word/footer1.xml'))
+    print(json.dumps({
+        'runs': [n.text for n in xml.findall('.//w:t', ns)],
+        'formulas': [n.text for n in xml.findall('.//m:oMath/m:r/m:t', ns)],
+        'footer': ''.join(footer.itertext()),
+        'breaks': len(xml.findall('.//w:pageBreakBefore', ns)),
+        'headers': sum(row.get('{%s}val' % ns['w']) not in ('0', 'false') for row in xml.findall('.//w:tblHeader', ns)),
+    }))
 `;
-const runs = JSON.parse(execFileSync("python", ["-B", "-c", readDocument], {input: archive}));
+const inspect = bytes => JSON.parse(execFileSync("python", ["-B", "-c", readDocument], {input: bytes}));
+const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+function checkLayout(doc) {
+  assert.ok(doc.runs.includes("DriveLab   /   " + version));
+  assert.ok(doc.footer.includes("DriveLab " + version));
+  assert.match(doc.footer, /\bPAGE\b/);
+  assert.match(doc.footer, /\bNUMPAGES\b/);
+  assert.ok(doc.headers > 0);
+}
+const stageDocument = inspect(archive);
+checkLayout(stageDocument);
+assert.deepEqual(stageDocument.formulas, stage.trace.map(step => step.formula));
+const runs = stageDocument.runs;
 for (const stress of [stage.rating.h, ...stage.rating.fs, stage.rating.hmax, ...stage.rating.fsmax])
   assert.ok(runs.includes(fmt(stress, 3)), "В отчёте отсутствует результат " + stress);
 const pending = stage.checks.find(item => item.status === "pending");
@@ -70,10 +91,26 @@ const rootPair = JSON.parse(execFileSync("python", ["-B", "src/engine.py", "exam
   cwd: root, encoding: "utf8",
 }));
 const rootDoc = await D.Packer.toBuffer(makeReport(rootPair, D));
-const rootRuns = JSON.parse(execFileSync("python", ["-B", "-c", readDocument], {input: rootDoc}));
+const rootRuns = inspect(rootDoc).runs;
 for (const [i, yd] of [.938966447, .912194723].entries()) {
   assert.ok(rootRuns.includes("Yδ" + (i + 1)));
   assert.ok(rootRuns.some(line => line?.includes(fmt(yd, 6))));
   assert.ok(rootRuns.some(line => line?.includes(rootPair.input.gost.roots[i].evidence)));
 }
 console.log("В DOCX проверены коэффициенты Yδ и обоснования обоих венцов.");
+
+const assembly = JSON.parse(await readFile(new URL("../examples/reducer-three-stage.result.json", import.meta.url), "utf8"));
+const assemblyDocument = inspect(await D.Packer.toBuffer(makeAssemblyReport(assembly, D)));
+checkLayout(assemblyDocument);
+assert.equal(assemblyDocument.breaks, assembly.stages.length);
+assert.ok(assemblyDocument.runs.includes(fmt(assembly.outputTorque, 6)));
+assert.deepEqual(assemblyDocument.formulas, [
+  ...assembly.trace.map(step => step.formula),
+  "ΣF = 0; ΣMx = 0; ΣMy = 0; M = r × F",
+  ...assembly.stages.flatMap(stage => stage.result.trace.map(step => step.formula)),
+]);
+for (const stage of assembly.stages) {
+  assert.ok(assemblyDocument.runs.includes("Ступень " + (stage.index + 1) + ". Полный расчёт"));
+  for (const check of stage.result.checks) assert.ok(assemblyDocument.runs.includes(check.detail));
+}
+console.log("Версия, поля страниц, формулы сборки и полные приложения ступеней проверены.");

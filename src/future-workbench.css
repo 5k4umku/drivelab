@@ -41,6 +41,17 @@ body {
 .instrument-brand {
   letter-spacing: -.052em;
 }
+.instrument-header .return-presentation {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--green);
+  font-size: .85rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
 .instrument-brand span {
   background: transparent;
   color: var(--green);
@@ -226,6 +237,66 @@ button.primary {
 .verification-filters [data-filter="pending"] strong { color: var(--signal-pending); }
 .verification-filters [data-filter="fail"] strong { color: var(--signal-fail); }
 .verification-empty { margin: 12px 0 0; }
+.inspector-stage-picker label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: .85rem;
+}
+.inspector-stage-picker #project-stage,
+.stage-primary-fields input {
+  width: 100%;
+  max-width: none;
+  min-height: 44px;
+  padding: 7px 9px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.stage-primary-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px;
+  margin: 12px 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.stage-primary-fields label { min-width: 0; }
+.stage-variants {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--green);
+  font-size: .9rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.stage-primary-fields input { font: 500 1rem var(--mono); }
+.assembly-scene:has(#assembly-view) > .viewer-top,
+.studio:has(.assembly-scene[hidden]) #assembly-envelope { display: none; }
+.studio .tool-tabs #assembly-envelope {
+  border-left: 1px solid var(--line);
+  margin-inline-start: 4px;
+}
+@media (max-width: 800px) {
+  .assembly-desk .studio-heading { gap: 6px; padding: 6px 9px; }
+  .studio-heading > div:first-child { display: none; }
+  .studio-heading .tool-tabs { display: flex; width: 100%; }
+  .studio-heading .tool-tabs button { min-height: 44px; }
+  .studio-heading .tool-tabs #assembly-envelope { margin-left: auto; }
+  .scene-tools > .stage-parameters {
+    width: 100%;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--line);
+    color: var(--ink);
+  }
+  .stage-parameters h2 { margin: 0 0 8px; color: var(--green); font: 650 1rem var(--sans); }
+  .scene-tools .stage-parameters label { display: grid; gap: 4px; width: 100%; max-width: none; justify-content: stretch; }
+  .scene-tools .stage-primary-fields input { width: 100%; height: 44px; }
+  .scene-tools .stage-primary-fields { margin-bottom: 0; }
+}
 :is(#checks-list, #assembly-checks) .check[hidden] { display: none !important; }
 #checks:has(.verification-deck) .checks-scope { display: none; }
 #checks-list .check,
