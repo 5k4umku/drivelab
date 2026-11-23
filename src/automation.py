@@ -3,7 +3,7 @@ import copy
 import json
 import math
 from engine import DEFAULTS, calculate, rating_inputs, r10
-from rating import normative_rating
+from gost_spectrum import stage_rating as normative_rating
 from coefficients import prepare
 from assembly import calculate_assembly
 from selection import zubil

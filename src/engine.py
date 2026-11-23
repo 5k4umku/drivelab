@@ -6,7 +6,7 @@ The seminar profile is deliberately explicit; provenance travels with every step
 import json
 import math
 from pathlib import Path
-from rating import normative_rating
+from gost_spectrum import stage_rating as normative_rating
 from coefficients import prepare, REGIMES
 from internal import calculate_internal
 from selection import tooth_pairs

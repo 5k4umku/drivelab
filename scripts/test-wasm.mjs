@@ -14,6 +14,7 @@ for (const name of [
   "automation.py",
   "tolerances.py",
   "rating.py",
+  "gost_spectrum.py",
   "coefficients.py",
   "motor.py",
   "internal.py",

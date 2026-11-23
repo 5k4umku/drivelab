@@ -13,6 +13,7 @@ const ready = (async () => {
     "tolerances.py",
     "defaults.json",
     "rating.py",
+    "gost_spectrum.py",
     "coefficients.py",
     "motor.py",
     "internal.py",
