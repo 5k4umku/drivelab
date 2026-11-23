@@ -10,6 +10,7 @@ from gost_special import helical_allowable, spur_bending
 from gost_subsurface import deep_contact, reduced_radius
 from gost_geometry import external_geometry, pair_stiffness, tooth_form_factor
 from gost_dynamics import resonance_state, resonant_factor, subcritical_forces
+from gost_manufacture import manufacture_factors
 
 SOURCE = 'ГОСТ 21354-87, приложение 1'
 PDF_URL = 'https://files.stroyinf.ru/Data2/1/4294832/4294832225.pdf'
@@ -89,6 +90,12 @@ def normative_rating(p, c, b, T, step=None, check=None):
         elif key == 'dynamics':
             if not isinstance(value, dict):
                 return reject('gost.dynamics: требуется объект с данными для приложения 5')
+        elif key in ('pitchStatisticH','pitchStatisticF'):
+            if not number(value) or value < 0:
+                return reject(f'gost.{key}: требуется неотрицательная погрешность в мкм')
+        elif key in ('alphaEvidence','runningInMode'):
+            if not isinstance(value,str):
+                return reject(f'gost.{key}: требуется строка')
         elif key in ('tool1','tool2'):
             if value not in ('standard','protuberance'):
                 return reject(f'gost.{key}: выберите standard или protuberance')
@@ -238,10 +245,19 @@ def _normative_rating(p, c, b, T, step=None, check=None):
     zv1, zv2 = c['z1'] / math.cos(beta) ** 3, c['z2'] / math.cos(beta) ** 3
     stiffness = pair_stiffness(zv1, zv2, x1, x2)
     cgamma = stiffness * (.75 * ea + .25)
-    a_alpha, y_alpha = cfg.get('aAlpha', 1.), cfg.get('yAlpha', 0.)
-    a_alpha_f = cfg.get('aAlphaF',max(.4,a_alpha))
-    if not (.2 if soft else .3) <= a_alpha <= 1 or not .4 <= a_alpha_f <= 1 or y_alpha < 0:
-        return rejected('Табл. 6.8 и 13.5: минимум aα для контакта 0,2/0,3 по HV, для изгиба 0,4. Требуется yα≥0.')
+    manufacture_materials = materials or [dict(sigmaHlim=p[f'sigmaH{i}'],homogeneous=True) for i in (1,2)]
+    process = manufacture_factors(cfg,(p['fpb1'],p['fpb2']),c['v'],manufacture_materials,soft)
+    a_alpha, a_alpha_f, y_alpha = process['aH'], process['aF'], process['y']
+    fpbe = process['fpbe']
+    if process['mode']=='table10':
+        assumptions[2] = 'Приработка yα рассчитана отдельно по свойствам каждого венца и усреднена по табл. 10.'
+        for i, entry in enumerate(process['member'],1):
+            limit = 'без ограничения' if entry['cap'] is None else f"предел {n(entry['cap'])} мкм"
+            emit(f'yα{i}','yα=min(расчёт по материалу; предел при данной скорости)',entry['y'],'мкм',
+                 'табл. 10',f"fpb={n(p[f'fpb{i}'])} мкм; v={n(c['v'])} м/с; σHlim={n(manufacture_materials[i-1]['sigmaHlim'])} МПа; до ограничения {n(entry['raw'])} мкм; {limit}")
+    if helical and min(a_alpha,a_alpha_f)<1 and not process['source']:
+        verify('Обоснование статистического коэффициента шага','pending',
+               'Для назначенного aα<1 укажите статистику изготовления и критерий допустимого повреждения.')
     khb = cfg.get('KHbeta', p['KHbeta'])
     kfb = cfg.get('KFbeta', p['KFbeta'])
     dyn_config = cfg.get('dynamics', {})
@@ -269,7 +285,9 @@ def _normative_rating(p, c, b, T, step=None, check=None):
     else:
         h_limits = ([a['sigmaHlim'] for a in materials] if materials else [p['sigmaH1'],p['sigmaH2']])
         def load_dynamics(force, ka):
-            return resonant_factor(dyn,dyn_config,eg,stiffness,face_width,force,ka,y_alpha,h_limits)
+            return resonant_factor(dyn,dyn_config,eg,stiffness,face_width,force,ka,process['yDynamics'],h_limits)
+        emit('Приработка шага для динамической нагрузки','yα для fpb из приложения 5',process['yDynamics'],
+             'мкм','табл. 25, п. 3.1.1; табл. 10')
         factors = load_dynamics(Ft,p['KA'])
         khv = kfv = factors['Kv']
         if dyn_config.get('coefficients'):
@@ -322,7 +340,6 @@ def _normative_rating(p, c, b, T, step=None, check=None):
         emit('KFβ из KHβ0','KFβ=(KHβ0)^NF',kfb,page='табл.13.4',substitution=f'{n(cfg["KHbeta0"])}^{n(nf)}')
     if khb < 1 or kfb < 1:
         return rejected('Коэффициенты неравномерности по ширине должны быть ≥1')
-    fpbe = math.hypot(p['fpb1'], p['fpb2'])
     for title, formula, value, sub, unit, page in [
         ('βb','βb=atan(tan β cos αt)',math.degrees(beta_b),f'atan(tan({n(math.degrees(beta))}°)×cos({n(c["alphaT"])}°))','°','табл.6.2'),
         ('zv1','zv1=z1/cos³β',zv1,f'{c["z1"]}/cos³({n(math.degrees(beta))}°)','','табл.13.6'),
@@ -330,8 +347,10 @@ def _normative_rating(p, c, b, T, step=None, check=None):
         ('c′','1/c′=0,05139+0,1425/zᵥ₁+0,1860/zᵥ₂−0,01x₁−0,1027x₁/zᵥ₁+0,00455x₂+0,3762x₂/zᵥ₂+0,00734x₁²−0,00054x₂²',stiffness,f'zᵥ₁={n(zv1)}; zᵥ₂={n(zv2)}; x₁={n(x1)}; x₂={n(x2)}','Н/(мм·мкм)','табл. 6, п. 7.1.2'),
         ('cγ','cγ=c′(.75 εα+.25)',cgamma,f'{n(stiffness)}×(.75×{n(ea)}+.25)','Н/(мм·мкм)','табл.6.8.1'),
         ('fpbe','fpbe=√(fpb1²+fpb2²)',fpbe,f'√({n(p["fpb1"])}²+{n(p["fpb2"])}²)','мкм','табл.6.8'),
-        ('aα','aα — заданный статистический коэффициент',a_alpha,n(a_alpha),'','табл.6.8; проектное допущение'),
-        ('yα','yα — заданная приработка шага',y_alpha,n(y_alpha),'мкм','табл.6.8; проектное допущение'),
+        ('aα','aα,H≥0,2 для мягкой пары или ≥0,3 для твёрдой',a_alpha,process['sourceH']+' '+process['source'],'','табл. 6, п. 8'),
+        ('aα для изгиба','aα,F≥0,4; yα,F=0',a_alpha_f,process['sourceF']+' '+process['source'],'','табл. 13, п. 5'),
+        ('yα','yα=(yα₁+yα₂)/2' if process['mode']=='table10' else 'Приработка по заданным данным',y_alpha,
+         f"({n(process['member'][0]['y'])}+{n(process['member'][1]['y'])})/2" if process['member'] else n(y_alpha),'мкм','табл. 6, п. 8.2; табл. 10'),
         ('KHβ','KHβ=1+(KHβ⁰−1)KHw' if face_auto else 'KHβ — заданный коэффициент по ширине',khb,n(khb),'','табл.6.7; формула' if face_auto else 'табл.6.7; вход проекта'),
         ('KFβ','KFβ=(KHβ⁰)^NF' if face_auto else 'KFβ — вход или (KHβ0)^NF',kfb,n(kfb),'','табл.13.4; формула' if face_auto else 'табл.13.4; вход проекта'),
     ]:
@@ -633,6 +652,6 @@ def _normative_rating(p, c, b, T, step=None, check=None):
                 KH=kh, KF=kf, KHv=khv, KFv=kfv, KHalpha=kha, KFalpha=kfa,
                 KHbeta=khb, KFbeta=kfb, epsilonBeta=eb, faceWidth=face_width,
                 loadShare=load_share, margins=margins, assumptions=assumptions,
-                faceAuto=face_auto, dynamics=dyn, materialProperties=materials, zonalContact=zones, spurBending=spur_result,
+                faceAuto=face_auto, dynamics=dyn, manufacture=process, materialProperties=materials, zonalContact=zones, spurBending=spur_result,
                 mandatoryPending=mandatory_pending,subsurface=depth_results,
                 trace=local_trace, checks=local_checks, source=PDF_URL)
