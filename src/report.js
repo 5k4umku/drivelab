@@ -1,78 +1,117 @@
 import { fmt, statusLabel } from "./format.js";
-export function makeReport(result, D, childrenOnly = false) {
-  const {
-    Document,
-    Paragraph,
-    TextRun,
-    Table,
-    TableRow,
-    TableCell,
-    HeadingLevel,
-    WidthType,
-    AlignmentType,
-    PageNumber,
-    Header,
-    Footer,
-    Math: Equation,
-    MathRun,
-    BorderStyle,
-  } = D;
-  const p = (text, options = {}) =>
-    new Paragraph({
-      children: [new TextRun({ text: String(text), ...options.run })],
-      spacing: { after: 100 },
-      ...options,
+import { siteVersion } from "./version.js";
+
+const ink = "171B21";
+const accent = "FFB277";
+const muted = "515B63";
+const paperWidth = 9746; // A4 less two 1080-twip margins.
+
+function reportLayout(D) {
+  const p = (text, { run, ...options } = {}) => new D.Paragraph({
+    children: [new D.TextRun({ text: String(text), ...run })],
+    ...options,
+  });
+  const heading = (text) => p(text, {
+    heading: D.HeadingLevel.HEADING_1,
+    keepNext: true,
+    shading: { fill: ink },
+    border: { left: { style: D.BorderStyle.SINGLE, color: accent, size: 24, space: 8 } },
+    spacing: { before: 180, after: 90, line: 350 },
+    run: { color: "FFFFFF", size: 25, bold: true },
+  });
+  const math = (text) => new D.Paragraph({
+    children: [new D.Math({ children: [new D.MathRun(text)] })],
+    keepNext: true,
+    spacing: { after: 48 },
+  });
+  function table(headers, rows, shares = headers.map(() => 1)) {
+    const total = shares.reduce((sum, value) => sum + value, 0);
+    const widths = shares.map(value => Math.floor(paperWidth * value / total));
+    widths[widths.length - 1] += paperWidth - widths.reduce((sum, width) => sum + width, 0);
+    const edge = { style: D.BorderStyle.SINGLE, size: 4, color: "D9D9D9" };
+    return new D.Table({
+      width: { size: paperWidth, type: D.WidthType.DXA },
+      layout: D.TableLayoutType.FIXED,
+      columnWidths: widths,
+      borders: { top: edge, bottom: edge, left: edge, right: edge, insideHorizontal: edge, insideVertical: edge },
+      rows: [headers, ...rows].map((row, i) => new D.TableRow({
+        tableHeader: i === 0,
+        cantSplit: true,
+        children: row.map((value, j) => new D.TableCell({
+          width: { size: widths[j], type: D.WidthType.DXA },
+          shading: { fill: i === 0 ? "333C46" : i % 2 ? "FFFFFF" : "F4F5F5" },
+          margins: { top: 48, bottom: 48, left: 95, right: 95 },
+          verticalAlign: D.VerticalAlign.CENTER,
+          children: [p(value, {
+            spacing: { after: 0, line: 226 },
+            alignment: i && /^[−+–-]?[\d—][\d\s,.−+–/%°-]*$/u.test(String(value)) ? D.AlignmentType.RIGHT : D.AlignmentType.LEFT,
+            run: { bold: i === 0, color: i === 0 ? "FFFFFF" : ink, size: 19 },
+          })],
+        })),
+      })),
     });
-  const heading = (text, level = HeadingLevel.HEADING_1) =>
-    p(text, {
-      heading: level,
-      keepNext: true,
-      spacing: { before: 240, after: 130 },
-    });
-  const math = (text) =>
-    new Paragraph({
-      children: [new Equation({ children: [new MathRun(text)] })],
-      spacing: { after: 90 },
-      keepNext: true,
-    });
-  const table = (headers, rows) =>
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      columnWidths: headers.map(() => Math.floor(9500 / headers.length)),
-      borders: Object.fromEntries(
-        [
-          "top",
-          "bottom",
-          "left",
-          "right",
-          "insideHorizontal",
-          "insideVertical",
-        ].map((k) => [
-          k,
-          { style: BorderStyle.SINGLE, size: 4, color: "C6CFD3" },
-        ]),
-      ),
-      rows: [headers, ...rows].map(
-        (row, index) =>
-          new TableRow({
-            tableHeader: index === 0,
-            cantSplit: true,
-            children: row.map(
-              (value) =>
-                new TableCell({
-                  shading: index === 0 ? { fill: "EAF0ED" } : undefined,
-                  margins: { top: 70, bottom: 70, left: 90, right: 90 },
-                  children: [
-                    p(value, {
-                      spacing: { after: 20 },
-                      run: { bold: index === 0, size: 19 },
-                    }),
-                  ],
-                }),
-            ),
+  }
+  function cover(kind, title, subtitle, pageBreakBefore = false) {
+    const noEdge = { style: D.BorderStyle.NIL };
+    const panel = new D.Table({
+      width: { size: paperWidth, type: D.WidthType.DXA },
+      columnWidths: [paperWidth],
+      borders: { top: noEdge, bottom: noEdge, left: noEdge, right: noEdge },
+      rows: [new D.TableRow({ cantSplit: true, children: [new D.TableCell({
+        shading: { fill: ink },
+        margins: { top: 175, bottom: 175, left: 245, right: 245 },
+        children: [
+          p("DriveLab   /   " + siteVersion, {
+            spacing: { after: 85 }, run: { size: 23, color: accent, bold: true },
           }),
-      ),
+          p(kind, {
+            heading: D.HeadingLevel.TITLE, spacing: { before: 0, after: 55, line: 260 },
+            run: { size: 38, color: "FFFFFF", bold: true },
+          }),
+          p(title, { spacing: { after: 0 }, run: { size: 22, color: "E6E8EB" } }),
+        ],
+      })] })],
     });
+    return [
+      ...(pageBreakBefore ? [new D.Paragraph({
+        pageBreakBefore: true, keepNext: true, spacing: { after: 0, line: 20, lineRule: "exact" },
+      })] : []),
+      panel,
+      p(subtitle, { run: { color: muted, bold: true, size: 20 }, spacing: { before: 110, after: 110 }, keepNext: true }),
+    ];
+  }
+  function document(title, kind, children) {
+    const footer = new D.Paragraph({
+      alignment: D.AlignmentType.RIGHT,
+      children: [
+        new D.TextRun({ text: "DriveLab " + siteVersion + "     /     ", color: muted, size: 17 }),
+        new D.TextRun({ children: [D.PageNumber.CURRENT], bold: true, size: 18 }),
+        new D.TextRun({ text: " из ", color: muted, size: 17 }),
+        new D.TextRun({ children: [D.PageNumber.TOTAL_PAGES], size: 17 }),
+      ],
+    });
+    return new D.Document({
+      creator: "DriveLab", title, description: kind,
+      styles: { default: { document: {
+        run: { font: "Calibri", size: 21, color: ink },
+        paragraph: { spacing: { line: 250, after: 84 }, widowControl: true },
+      } } },
+      sections: [{
+        properties: { page: {
+          size: { width: 11906, height: 16838 },
+          margin: { top: 940, bottom: 960, left: 1080, right: 1080, header: 450, footer: 450 },
+        } },
+        headers: { default: new D.Header({ children: [p("DriveLab     /     " + kind, { run: { size: 17, color: muted } })] }) },
+        footers: { default: new D.Footer({ children: [footer] }) },
+        children,
+      }],
+    });
+  }
+  return { p, heading, math, table, cover, document };
+}
+
+export function makeReport(result, D, childrenOnly = false) {
+  const { p, heading, math, table, cover, document } = reportLayout(D);
   const c = result.chosen,
     inp = result.input,
     children = [];
@@ -81,13 +120,10 @@ export function makeReport(result, D, childrenOnly = false) {
     helical: "Косозубая",
     herringbone: "Шевронная",
   };
-  children.push(
-    p("Расчёт зубчатой передачи", { heading: HeadingLevel.TITLE }),
-    p(
-      `${types[inp.gearType]} передача ${inp.meshType === "internal" ? "внутреннего" : "внешнего"} зацепления`,
-    ),
-    p(inp.title, { run: { bold: true } }),
-  );
+  const description = `${types[inp.gearType]} передача ${inp.meshType === "internal" ? "внутреннего" : "внешнего"} зацепления`;
+  const kind = "Расчёт зубчатой передачи";
+  if (childrenOnly) children.push(p(inp.title, { run: { bold: true } }), p(description));
+  else children.push(...cover(kind, inp.title, description));
   children.push(
     p(
       inp.meshType === "internal"
@@ -151,7 +187,7 @@ export function makeReport(result, D, childrenOnly = false) {
     const passport = result.rating?.materialProperties;
     children.push(table(["Венец и обработка","Строка ГОСТ","HB / HV / HRCэ","Источник"], inp.gost.materials.map((x,i)=>[
       x.label, String(x.row), [x.hb,x.hv,x.hrc].map(v=>fmt(v)).join(" / "), x.evidence
-    ])));
+    ]), [25, 15, 23, 37]));
     if (passport) children.push(table(["Венец","σHlim, МПа","σFlimb⁰, МПа","SH / SF"],passport.map((x,i)=>[i?"Колесо":"Шестерня",fmt(x.sigmaHlim),fmt(x.sigmaFlimb0),fmt(x.SH)+" / "+fmt(x.SF)])));
   }
   if (inp.gost?.basic) children.push(p("Общие зависимости ГОСТ. Основание для коэффициентов: "+inp.gost.basic.source));
@@ -168,7 +204,7 @@ export function makeReport(result, D, childrenOnly = false) {
       ["Пиковый контакт", rating.hmax, rating.hMaxAllow],
       ["Пиковый изгиб шестерни", rating.fsmax?.[0], rating.fMaxAllow?.[0]],
       ["Пиковый изгиб колеса", rating.fsmax?.[1], rating.fMaxAllow?.[1]],
-    ].map(([label, stress, limit]) => [label, fmt(stress, 3), fmt(limit, 3)])));
+    ].map(([label, stress, limit]) => [label, fmt(stress, 3), fmt(limit, 3)]), [42, 29, 29]));
   } else {
     children.push(p(rating?.reason || "Для этой ступени проверка прочности недоступна."));
   }
@@ -213,7 +249,7 @@ export function makeReport(result, D, childrenOnly = false) {
       p(s.title, {
         run: { bold: true },
         keepNext: true,
-        spacing: { before: 150, after: 80 },
+        spacing: { before: 110, after: 44 },
       }),
     );
     children.push(math(s.formula));
@@ -225,12 +261,12 @@ export function makeReport(result, D, childrenOnly = false) {
     );
     children.push(
       p(`Результат: ${fmt(s.value, 6)} ${s.unit}`, {
-        run: { bold: true },
+        run: { bold: true, color: "834119" },
         keepNext: true,
       }),
     );
     children.push(
-      p(`Источник: ${s.source}`, { run: { size: 17, color: "61706B" } }),
+      p(`Источник: ${s.source}`, { run: { size: 18, color: muted } }),
     );
   }
   children.push(heading("Методика и ограничения"));
@@ -261,7 +297,7 @@ export function makeReport(result, D, childrenOnly = false) {
   );
   children.push(
     p(
-      "DriveLab 0.5.0. Вычислительное ядро CPython. Для воспроизведения используйте сохранённый JSON проекта и эту версию исходного кода.",
+      "DriveLab " + siteVersion + ". Вычислительное ядро CPython. Для воспроизведения используйте сохранённый JSON проекта и эту версию исходного кода.",
     ),
   );
   children.push(heading("Принятые коэффициенты"));
@@ -296,164 +332,14 @@ export function makeReport(result, D, childrenOnly = false) {
     ),
   );
   if (childrenOnly) return children;
-  return new Document({
-    creator: "DriveLab",
-    title: "Расчёт зубчатой передачи",
-    description:
-      "Прослеживаемый расчёт по семинарам и проверка по формулам ГОСТ 21354–87",
-    styles: {
-      default: {
-        document: {
-          run: { font: "Times New Roman", size: 22, color: "000000" },
-          paragraph: { spacing: { line: 260, after: 100 } },
-        },
-      },
-      paragraphStyles: [
-        {
-          id: "Title",
-          name: "Title",
-          basedOn: "Normal",
-          next: "Normal",
-          run: {
-            font: "Times New Roman",
-            size: 36,
-            bold: true,
-            color: "000000",
-          },
-          paragraph: { spacing: { after: 220 } },
-        },
-        {
-          id: "Heading1",
-          name: "Heading 1",
-          basedOn: "Normal",
-          next: "Normal",
-          run: {
-            font: "Times New Roman",
-            size: 28,
-            bold: true,
-            color: "000000",
-          },
-          paragraph: { keepNext: true, spacing: { before: 240, after: 130 } },
-        },
-      ],
-    },
-    sections: [
-      {
-        properties: {
-          page: {
-            size: { width: 11906, height: 16838 },
-            margin: { top: 1000, bottom: 1000, left: 1250, right: 1050 },
-          },
-        },
-        headers: {
-          default: new Header({
-            children: [
-              p("DriveLab     Расчёт зубчатой передачи", {
-                run: { size: 16, color: "728079" },
-              }),
-            ],
-          }),
-        },
-        footers: {
-          default: new Footer({
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                children: [
-                  new TextRun({ text: "DriveLab 0.2.0   ·   ", size: 16 }),
-                  new TextRun({ children: [PageNumber.CURRENT], size: 16 }),
-                ],
-              }),
-            ],
-          }),
-        },
-        children,
-      },
-    ],
-  });
+  return document(inp.title, kind, children);
 }
 
 export function makeAssemblyReport(assembly, D) {
-  const {
-    Document,
-    Paragraph,
-    TextRun,
-    Table,
-    TableRow,
-    TableCell,
-    HeadingLevel,
-    WidthType,
-    Footer,
-    PageNumber,
-    Math: Equation,
-    MathRun,
-  } = D;
-  const p = (text, options = {}) =>
-    new Paragraph({
-      children: [new TextRun(String(text))],
-      spacing: { after: 120 },
-      ...options,
-    });
-  const h = (text) =>
-    p(text, {
-      heading: HeadingLevel.HEADING_1,
-      keepNext: true,
-      spacing: { before: 260, after: 140 },
-    });
-  const table = (head, rows) =>
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      columnWidths:
-        head.length === 2
-          ? [6100, 3700]
-          : head.map(() => Math.floor(9800 / head.length)),
-      borders: Object.fromEntries(
-        [
-          "top",
-          "bottom",
-          "left",
-          "right",
-          "insideHorizontal",
-          "insideVertical",
-        ].map((key) => [
-          key,
-          { style: D.BorderStyle.SINGLE, size: 4, color: "D9D9D9" },
-        ]),
-      ),
-      rows: [head, ...rows].map(
-        (row, i) =>
-          new TableRow({
-            tableHeader: i === 0,
-            cantSplit: true,
-            children: row.map(
-              (text) =>
-                new TableCell({
-                  shading: i === 0 ? { fill: "E8EEF3" } : undefined,
-                  margins: { top: 80, bottom: 80, left: 100, right: 100 },
-                  verticalAlign: D.VerticalAlign.CENTER,
-                  children: [
-                    new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: String(text),
-                          bold: i === 0,
-                          size: 20,
-                        }),
-                      ],
-                      spacing: { after: 20, line: 240 },
-                    }),
-                  ],
-                }),
-            ),
-          }),
-      ),
-    });
+  const { p, heading: h, math, table, cover, document } = reportLayout(D);
+  const kind = "Расчёт цилиндрического редуктора";
   const children = [
-    p("Расчёт цилиндрического редуктора", { heading: HeadingLevel.TITLE }),
-    p(assembly.project.name),
-    p(
-      `DriveLab 0.2.0 · ${assembly.stages.length} ступеней · ${assembly.shafts.length} валов`,
-    ),
+    ...cover(kind, assembly.project.name, "Ступени: " + assembly.stages.length + "   /   Валы: " + assembly.shafts.length),
     h("Итоговые параметры"),
     table(
       ["Параметр", "Значение"],
@@ -466,7 +352,7 @@ export function makeAssemblyReport(assembly, D) {
         ["Частота на выходе, мин⁻¹", fmt(assembly.outputSpeed, 6)],
         ["Момент на выходе, Н·м", fmt(assembly.outputTorque, 6)],
         ["Потери мощности, кВт", fmt(assembly.lostPower, 6)],
-      ],
+      ], [63, 37],
     ),
     p(
       "Последовательные цилиндрические зацепления, параллельные валы, смещения профиля указаны для каждой ступени. Номера подшипников, ресурс опор, прочность и упругая линия валов, шпонки и конструкция корпуса не рассчитаны. Габаритные проверки не заменяют рабочие чертежи.",
@@ -488,10 +374,7 @@ export function makeAssemblyReport(assembly, D) {
   for (const step of assembly.trace)
     children.push(
       p(step.title, { keepNext: true }),
-      new Paragraph({
-        children: [new Equation({ children: [new MathRun(step.formula)] })],
-        keepNext: true,
-      }),
+      math(step.formula),
       p(step.detail),
     );
   children.push(
@@ -501,13 +384,7 @@ export function makeAssemblyReport(assembly, D) {
     ),
   );
   children.push(
-    new Paragraph({
-      children: [
-        new Equation({
-          children: [new MathRun("ΣF = 0; ΣMx = 0; ΣMy = 0; M = r × F")],
-        }),
-      ],
-    }),
+    math("ΣF = 0; ΣMx = 0; ΣMy = 0; M = r × F"),
   );
   for (const shaft of assembly.shafts) {
     children.push(
@@ -558,75 +435,8 @@ export function makeAssemblyReport(assembly, D) {
     ),
   );
   for (const stage of assembly.stages) {
-    children.push(
-      p(`Ступень ${stage.index + 1}. Полный расчёт`, {
-        heading: HeadingLevel.HEADING_1,
-        pageBreakBefore: true,
-      }),
-    );
+    children.push(...cover("Ступень " + (stage.index + 1) + ". Полный расчёт", assembly.project.name, "Расчёт зубчатой передачи", true));
     children.push(...makeReport(stage.result, D, true));
   }
-  return new Document({
-    creator: "DriveLab",
-    title: assembly.project.name,
-    styles: {
-      default: {
-        document: {
-          run: { font: "Times New Roman", size: 22, color: "000000" },
-          paragraph: { spacing: { line: 260, after: 100 } },
-        },
-      },
-      paragraphStyles: [
-        {
-          id: "Title",
-          name: "Title",
-          basedOn: "Normal",
-          next: "Normal",
-          run: {
-            font: "Times New Roman",
-            size: 36,
-            bold: true,
-            color: "000000",
-          },
-          paragraph: { spacing: { after: 220 } },
-        },
-        {
-          id: "Heading1",
-          name: "Heading 1",
-          basedOn: "Normal",
-          next: "Normal",
-          run: {
-            font: "Times New Roman",
-            size: 28,
-            bold: true,
-            color: "000000",
-          },
-          paragraph: { keepNext: true, spacing: { before: 240, after: 130 } },
-        },
-      ],
-    },
-    sections: [
-      {
-        properties: {
-          page: {
-            size: { width: 11906, height: 16838 },
-            margin: { top: 1000, bottom: 1000, left: 1100, right: 1000 },
-          },
-        },
-        footers: {
-          default: new Footer({
-            children: [
-              new Paragraph({
-                children: [
-                  new TextRun("DriveLab 0.2.0 · "),
-                  new TextRun({ children: [PageNumber.CURRENT] }),
-                ],
-              }),
-            ],
-          }),
-        },
-        children,
-      },
-    ],
-  });
+  return document(assembly.project.name, kind, children);
 }

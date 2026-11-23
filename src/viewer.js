@@ -6,176 +6,9 @@ import {
 import * as THREE from "three";
 import { OrbitControls } from "../vendor/three/OrbitControls.js";
 
-/** Rendering only: all engineering dimensions and speeds come from Python.
- * Involute flanks sampled in transverse section; root transitions are radial.
- * The display has zero backlash and no claim of manufacturing-ready geometry.
- */
-function profile(c, i) {
-  const z = c["z" + i],
-    rp = c["d" + i] / 2,
-    rb = c["db" + i] / 2,
-    ra = c["da" + i] / 2,
-    rf = c["df" + i] / 2;
-  const alpha = (c.alphaT * Math.PI) / 180,
-    invPitch = Math.tan(alpha) - alpha;
-  const points = [],
-    pitch = (2 * Math.PI) / z,
-    half = (Math.PI / 2 + 2 * (c["x" + i] || 0) * Math.tan(Math.PI / 9)) / z;
-  const inv = (r) => {
-    const a = Math.acos(Math.min(1, rb / r));
-    return Math.tan(a) - a;
-  };
-  const angle = (r) => half + invPitch - inv(r);
-  const pt = (r, a) =>
-    points.push(new THREE.Vector2(r * Math.cos(a), r * Math.sin(a)));
-  const start = Math.max(rf, rb);
-  for (let tooth = 0; tooth < z; tooth++) {
-    const center = tooth * pitch;
-    pt(rf, center - angle(start));
-    for (let j = 0; j <= 7; j++) {
-      const r = start + ((ra - start) * j) / 7;
-      pt(r, center - angle(r));
-    }
-    for (let j = 1; j <= 3; j++)
-      pt(ra, center - angle(ra) + (2 * angle(ra) * j) / 3);
-    for (let j = 6; j >= 0; j--) {
-      const r = start + ((ra - start) * j) / 7;
-      pt(r, center + angle(r));
-    }
-    pt(rf, center + angle(start));
-    for (let j = 1; j <= 3; j++)
-      pt(rf, center + angle(start) + ((pitch - 2 * angle(start)) * j) / 3);
-  }
-  return { points, rp };
-}
-export function gearGeometry(c, i, width, type, hand = 1) {
-  if (c.meshType === "internal" && i === 2)
-    return ringGeometry(c, width, type, hand);
-  const { points, rp } = profile(c, i),
-    count = points.length,
-    segments = type === "spur" ? 1 : 20;
-  const positions = [],
-    indices = [],
-    twist =
-      (Math.tan((c.beta * Math.PI) / 180) / rp) * (i === 1 ? 1 : -1) * hand;
-  for (let layer = 0; layer <= segments; layer++) {
-    const depth = width * (layer / segments - 0.5);
-    const a = (type === "herringbone" ? Math.abs(depth) : depth) * twist;
-    for (const pt of points)
-      positions.push(
-        pt.x * Math.cos(a) - pt.y * Math.sin(a),
-        pt.x * Math.sin(a) + pt.y * Math.cos(a),
-        depth,
-      );
-  }
-  for (let layer = 0; layer < segments; layer++)
-    for (let j = 0; j < count; j++) {
-      const a = layer * count + j,
-        b = layer * count + ((j + 1) % count),
-        c2 = a + count,
-        d = b + count;
-      indices.push(a, b, d, a, d, c2);
-    }
-  const faces = THREE.ShapeUtils.triangulateShape(points, []);
-  for (const [a, b, c2] of faces) {
-    indices.push(c2, b, a);
-    indices.push(
-      a + segments * count,
-      b + segments * count,
-      c2 + segments * count,
-    );
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  return geo;
-}
+import { gearMesh, meshPhase } from "./gear-geometry.js";
+export { gearGeometry } from "./gear-geometry.js";
 
-/** Inward involute teeth. The bore is a real hole, not a translucent disc.
- * Root transitions are schematic; manufacturing interference is not checked. */
-function ringGeometry(c, width, type, hand) {
-  const rb = c.db2 / 2,
-    ra = c.da2 / 2,
-    rf = c.df2 / 2,
-    rp = c.d2 / 2;
-  const alpha = (c.alphaT * Math.PI) / 180,
-    invPitch = Math.tan(alpha) - alpha;
-  const pitch = (2 * Math.PI) / c.z2,
-    half = Math.PI / (2 * c.z2),
-    inner = [];
-  const angle = (r) => {
-    const a = Math.acos(rb / r);
-    return half - invPitch + Math.tan(a) - a;
-  };
-  const point = (r, a) =>
-    inner.push(new THREE.Vector2(r * Math.cos(a), r * Math.sin(a)));
-  for (let tooth = 0; tooth < c.z2; tooth++) {
-    const center = tooth * pitch;
-    for (let j = 0; j <= 7; j++) {
-      const r = rf + ((ra - rf) * j) / 7;
-      point(r, center - angle(r));
-    }
-    for (let j = 1; j <= 3; j++)
-      point(ra, center - angle(ra) + (2 * angle(ra) * j) / 3);
-    for (let j = 1; j <= 7; j++) {
-      const r = ra + ((rf - ra) * j) / 7;
-      point(r, center + angle(r));
-    }
-    for (let j = 1; j < 4; j++)
-      point(rf, center + angle(rf) + ((pitch - 2 * angle(rf)) * j) / 4);
-  }
-  inner.reverse();
-  const outer = Array.from(
-    { length: 128 },
-    (_, j) =>
-      new THREE.Vector2(
-        (c.outerDiameter / 2) * Math.cos((j * 2 * Math.PI) / 128),
-        (c.outerDiameter / 2) * Math.sin((j * 2 * Math.PI) / 128),
-      ),
-  );
-  const points = [...outer, ...inner],
-    count = points.length,
-    segments = type === "spur" ? 1 : 20;
-  const positions = [],
-    indices = [],
-    twist = (Math.tan((c.beta * Math.PI) / 180) / rp) * hand;
-  for (let layer = 0; layer <= segments; layer++) {
-    const depth = width * (layer / segments - 0.5),
-      a = (type === "herringbone" ? Math.abs(depth) : depth) * twist;
-    for (const p of points)
-      positions.push(
-        p.x * Math.cos(a) - p.y * Math.sin(a),
-        p.x * Math.sin(a) + p.y * Math.cos(a),
-        depth,
-      );
-  }
-  for (const [start, length] of [
-    [0, outer.length],
-    [outer.length, inner.length],
-  ])
-    for (let layer = 0; layer < segments; layer++)
-      for (let j = 0; j < length; j++) {
-        const a = layer * count + start + j,
-          b = layer * count + start + ((j + 1) % length);
-        indices.push(a, b, b + count, a, b + count, a + count);
-      }
-  for (const [a, b, d] of THREE.ShapeUtils.triangulateShape(outer, [inner])) {
-    indices.push(
-      d,
-      b,
-      a,
-      a + segments * count,
-      b + segments * count,
-      d + segments * count,
-    );
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  return geo;
-}
 export const sceneAccent = 0x6ce2f5;
 
 function studioEnvironment(renderer) {
@@ -296,6 +129,7 @@ export class GearViewer {
       if (child !== this.lines) {
         this.model.remove(child);
         child.traverse((o) => {
+          if (o.isInstancedMesh) o.dispose();
           o.geometry?.dispose();
           o.material?.dispose();
         });
@@ -318,16 +152,8 @@ export class GearViewer {
       this.model.add(group);
       this.gears.push(group);
       const material = steelMaterial(i === 1 ? 0xcbd0d3 : 0xaeb1b6);
-      const gear = new THREE.Mesh(
-        gearGeometry(
-          c,
-          i,
-          result.b,
-          result.input.gearType,
-          result.assemblyContext?.hand === "left" ? -1 : 1,
-        ),
-        material,
-      );
+      const gear = gearMesh(c, i, result.b, result.input.gearType,
+        result.assemblyContext?.hand === "left" ? -1 : 1, material);
       gear.userData.explodeDirection = new THREE.Vector3(
         0,
         0,
@@ -368,7 +194,9 @@ export class GearViewer {
       for (const [key, color] of [
         ["d", 0x91e5be],
         ["db", 0x597e91],
+        ["dw", 0xffaa65],
       ]) {
+        if (key === "dw" && Math.abs((c[key + i] ?? c["d" + i]) - c["d" + i]) < 1e-8) continue;
         const pts = Array.from(
           { length: 181 },
           (_, j) =>
@@ -391,8 +219,8 @@ export class GearViewer {
         );
       }
     }
-    this.phase = Math.PI - Math.PI / c.z2;
-    this.pinionPhase = c.meshType === "internal" ? Math.PI : 0;
+    this.phase = meshPhase(c, 2);
+    this.pinionPhase = meshPhase(c, 1);
     this.gears[0].rotation.z = this.pinionPhase;
     this.gears[1].rotation.z = this.phase;
     // Include the axial shaft symbols: a wide pair must also fit in iso view.

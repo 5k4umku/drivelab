@@ -50,6 +50,14 @@ export function setupShell() {
       closeMenus();
     }
   });
+  const stagePicker = document.querySelector("#project-stage");
+  const stageLabel = stagePicker.closest("label");
+  const stageHome = document.querySelector("#project-outcome");
+  function placeStagePicker(pageId) {
+    const slot = document.querySelector(".inspector-stage-picker");
+    if (pageId === "constructor" && slot) slot.append(stageLabel);
+    else stageHome.before(stageLabel);
+  }
   function route() {
     const assemblyChecks = location.hash === "#assembly-checks";
     const id = assemblyChecks ? "constructor" : Object.hasOwn(labels, location.hash.slice(1))
@@ -65,6 +73,7 @@ export function setupShell() {
       else link.removeAttribute("aria-current");
     }
     document.querySelector("#route-title").textContent = labels[id];
+    placeStagePicker(id);
     closeMenus();
     document.querySelector(".analysis-menu").classList.toggle("current", !!document.querySelector(".analysis-menu a.active"));
     document.body.dataset.page = id;
@@ -93,7 +102,7 @@ export function setupShell() {
   studio.className = "studio";
   scene.before(studio);
   studio.innerHTML =
-    '<div class="studio-heading"><div><span class="live-dot"></span> Модель редуктора</div><div class="tool-tabs"><button data-scene="3d" class="active">Объёмная модель</button><button data-scene="2d">Схема 2D</button></div></div>';
+    '<div class="studio-heading"><div><span class="live-dot"></span> Модель редуктора</div><div class="tool-tabs"><button data-scene="3d" class="active" aria-pressed="true">Объёмная модель</button><button data-scene="2d" aria-pressed="false">Схема 2D</button></div></div>';
   studio.append(scene, scheme);
   scheme.hidden = true;
   studio.querySelectorAll("[data-scene]").forEach(
@@ -101,9 +110,13 @@ export function setupShell() {
       (b.onclick = () => {
         scene.hidden = b.dataset.scene !== "3d";
         scheme.hidden = b.dataset.scene !== "2d";
+        dockStageParameters();
         studio
           .querySelectorAll("[data-scene]")
-          .forEach((x) => x.classList.toggle("active", x === b));
+          .forEach((x) => {
+            x.classList.toggle("active", x === b);
+            x.setAttribute("aria-pressed", String(x === b));
+          });
       }),
   );
   // Модель первой: исходные поля остаются доступными, но не заслоняют результат.
@@ -135,15 +148,31 @@ export function setupShell() {
   const inspector = document.createElement("aside");
   inspector.className = "assembly-inspector";
   inspector.setAttribute("aria-label", "Данные ступени и редуктора");
-  inspector.innerHTML = '<h2>Выбранная ступень</h2><div id="inspector-pair"></div><a href="#overview">Открыть расчёт ступени →</a><h2>Выход редуктора</h2>';
+  inspector.innerHTML = '<section class="stage-parameters"><h2>Параметры ступени</h2><div class="inspector-stage-picker"></div><a class="stage-variants" href="#variants">Сравнить варианты →</a></section><div id="inspector-pair"></div><a href="#overview">Открыть расчёт ступени →</a><h2>Выход редуктора</h2>';
+  const stageParameters = inspector.querySelector(".stage-parameters");
+  stageParameters.querySelector(".stage-variants").before(root.querySelector(".stage-primary-fields"));
+  const compact = matchMedia("(max-width: 800px)");
+  function dockStageParameters() {
+    const readout = scene.querySelector(".scene-readout");
+    if (compact.matches && !scene.hidden && readout) readout.before(stageParameters);
+    else inspector.prepend(stageParameters);
+  }
+  compact.addEventListener("change", dockStageParameters);
+  root.addEventListener("assembly-view-ready", () => {
+    const forces = scene.querySelector('[data-effect="forces"]');
+    if (forces) forces.textContent = "Векторы сил";
+    dockStageParameters();
+  }, { once: true });
+  const envelope = scene.querySelector("#assembly-envelope");
+  studio.querySelector(".tool-tabs").append(envelope);
   desk.append(studio, inspector);
+  placeStagePicker(document.body.dataset.page);
   inspector.append(root.querySelector("#assembly-metrics"), projectNotice);
   const presets = document.createElement("details");
   presets.className = "project-setup presets";
   presets.innerHTML = "<summary><b>Начать с шаблона</b></summary>";
   desk.after(presets);
   presets.append(root.querySelector(".builder-toolbar"));
-  const stagePicker = document.querySelector("#project-stage");
   stagePicker.onchange = () => root.querySelector(`[data-flow="${Number(stagePicker.value)}"]`)?.click();
 
   // Размеры и нагрузки остаются узлами результата расчёта, рядом со сценой.

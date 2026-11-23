@@ -52,9 +52,12 @@ export function installSceneEffects(viewer) {
       <span class="scene-mode-note" role="status">Рабочее зацепление</span>
       <span class="scene-grid-note"></span>
       <span class="scene-context"></span>
+      <span class="scene-profile-note" hidden>Эвольвенты соседних зубьев кольца сходятся до диаметра впадин df₂. Для построения перехода до df₂ нужен профиль долбяка.</span>
       <span class="scene-force-note" hidden></span>
     </div>
-    <details class="scene-help"><summary>Управление моделью</summary>
+    <details class="scene-help"><summary>Управление и геометрия модели</summary>
+      <p>Эвольвентные боковые поверхности показаны по расчётным диаметрам. Переход к впадине и кожух условные. Боковой зазор, форма от инструмента и возможность интерференции требуют данных изготовления.</p>
+      <p>В парном виде зелёная окружность — делительная d, синяя — основная db. При смещении оранжевым показана отличающаяся начальная окружность dw.</p>
       <p id="${id}-help">Мышь: перетащите модель для поворота, колесо меняет масштаб.
         Касание: один палец — поворот, два — масштаб и сдвиг.
         Клавиатура на модели: стрелки — сдвиг, Shift + стрелки — поворот, +/− — масштаб,
@@ -275,6 +278,11 @@ export function prepareSceneEffects(viewer) {
   }
   const r = viewer.result;
   let loads = [];
+  if (viewer.effectsPanel) {
+    let limited = false;
+    viewer.model.traverse(o => { if (o.geometry?.userData.limitedRingRoot) limited = true; });
+    viewer.effectsPanel.querySelector(".scene-profile-note").hidden = !limited;
+  }
   if (r.gears) {
     loads = r.gears
       .filter((g) => g.side === 1)

@@ -1,0 +1,48 @@
+[data-feature-screen] { position: relative; }
+.feature-demo-panel { color: inherit; font-size: .9rem; line-height: 1.36; }
+.feature-demo-panel h3 { margin: 0 0 .6rem; font-size: clamp(1.12rem, 2vw, 1.45rem); }
+.feature-demo-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .28rem; }
+.feature-demo-panel li { display: grid; grid-template-columns: minmax(7rem, 1fr) 2fr; gap: .45rem; }
+.feature-demo-panel li, .feature-demo-output {
+  padding: .35rem .45rem; border: 1px solid transparent; border-radius: .4rem; overflow-wrap: anywhere;
+}
+.feature-demo-output { margin-top: .3rem; }
+.feature-demo-panel p { margin: .18rem 0; }
+.feature-demo-current { border-color: currentColor !important; }
+.feature-demo-paper table { width: 100%; border-collapse: collapse; font-size: .82em; }
+.feature-demo-paper :is(th, td) { padding: .22rem; text-align: left; border-bottom: 1px solid currentColor; }
+[data-feature-screen] [data-feature-pointer] {
+  position: absolute; z-index: 1; inset: auto; pointer-events: none;
+  width: 18px; height: 23px; background: #9fefcb;
+  clip-path: polygon(0 0, 100% 65%, 59% 69%, 75% 95%, 54% 100%, 39% 74%, 0 94%);
+  transition: left .42s ease, top .42s ease;
+}
+@media (max-width: 470px) {
+  .feature-demo-panel { font-size: .78rem; }
+  .feature-demo-panel li { grid-template-columns: 1fr 1.8fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-feature-screen] [data-feature-pointer] { display: none; transition: none; }
+}
+
+
+.feature-reader-toolbar {
+  position: sticky; top: 0; z-index: 1;
+  padding: .65rem .8rem; background: #20262e; border-bottom: 1px solid #66727d;
+}
+.feature-reader-toolbar h3 { margin: 0 0 .4rem; font-size: 1rem; }
+.feature-reader-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.feature-reader-controls label { display: flex; align-items: center; gap: .35rem; }
+[data-feature-report-reader] figure { margin: .65rem auto 1rem; max-width: 869px; }
+[data-feature-report-reader] figcaption { padding: .25rem .55rem .5rem; font-size: .85rem; }
+.feature-reader-page { overflow-x: auto; }
+.feature-reader-page img { width: 100%; height: auto; }
+[data-report-enlarged] .feature-reader-page img { width: max(820px, 150%); max-width: none; }
+
+
+@media (prefers-reduced-motion: no-preference) {
+  .feature-demo-export-press { animation: feature-demo-export-press .3s .17s ease-out; }
+}
+@keyframes feature-demo-export-press {
+  50% { background: #ffb27732; transform: scale(.985); }
+}

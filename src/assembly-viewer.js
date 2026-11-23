@@ -1,6 +1,7 @@
+import { gearMesh, meshPhase } from "./gear-geometry.js";
 import { prepareSceneEffects } from "./scene-effects.js";
 import * as THREE from "three";
-import { GearViewer, gearGeometry, sceneAccent, steelMaterial } from "./viewer.js";
+import { GearViewer, sceneAccent, steelMaterial } from "./viewer.js";
 
 const selectedSteel = new THREE.Color(0xb6b8bb).lerp(new THREE.Color(sceneAccent), 0.55);
 
@@ -12,6 +13,7 @@ export class AssemblyViewer extends GearViewer {
     for (const child of [...this.model.children]) {
       this.model.remove(child);
       child.traverse((o) => {
+        if (o.isInstancedMesh) o.dispose();
         o.geometry?.dispose();
         o.material?.dispose();
       });
@@ -69,29 +71,15 @@ export class AssemblyViewer extends GearViewer {
     for (const gear of result.gears) {
       const stage = result.stages[gear.stage];
       const c = stage.result.chosen;
-      const mesh = new THREE.Mesh(
-        gearGeometry(
-          c,
-          gear.side,
-          gear.width,
-          stage.result.input.gearType,
-          stage.hand === "left" ? -1 : 1,
-        ),
-        steelMaterial(gear.stage === this.activeStage ? selectedSteel : 0x96999e),
-      );
+      const mesh = gearMesh(c, gear.side, gear.width, stage.result.input.gearType,
+        stage.hand === "left" ? -1 : 1, steelMaterial(gear.stage === this.activeStage ? selectedSteel : 0x96999e));
       mesh.position.z = gear.z;
       mesh.userData.explodeDirection = new THREE.Vector3(
         0,
         0,
         (gear.side === 1 ? -1 : 1) * (gear.stage + 1) * gear.width * 2,
       );
-      mesh.rotation.z =
-        (stage.angle * Math.PI) / 180 +
-        (gear.side === 2
-          ? Math.PI - Math.PI / c.z2
-          : c.meshType === "internal"
-            ? Math.PI
-            : 0);
+      mesh.rotation.z = meshPhase(c, gear.side, stage.angle * Math.PI / 180, stage.signedInputSpeed);
       this.rotors[gear.shaft].add(mesh);
     }
     if (result.motor) {

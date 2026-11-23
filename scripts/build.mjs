@@ -1,4 +1,4 @@
-import { cp, mkdir, copyFile, rm, readFile, readdir } from "node:fs/promises";
+import { cp, mkdir, copyFile, rm, readFile, readdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const out = resolve(root, "dist");
@@ -28,4 +28,5 @@ for (const name of ["src", "vendor"])
 await mkdir(resolve(out, "examples"), {recursive:true});
 await copyFile(resolve(root, "examples/gost-annex-11.json"), resolve(out, "examples/gost-annex-11.json"));
 const pkg = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+await writeFile(resolve(out, "src/version.js"), "export const siteVersion = " + JSON.stringify(pkg.version) + ";\n");
 console.log(`DriveLab ${pkg.version}: static build ready in dist/`);
