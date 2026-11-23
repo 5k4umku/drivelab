@@ -1,0 +1,66 @@
+{
+  "format": "DriveLab",
+  "version": 1,
+  "input": {
+    "geometryMode": "given",
+    "gearType": "spur",
+    "speed": 100,
+    "ratio": 2,
+    "manualZ1": 30,
+    "manualZ2": 60,
+    "manualModule": 16,
+    "manualWidth": 140,
+    "x1": 0,
+    "x2": -0.2,
+    "autoTables": false,
+    "loadRegime": "0",
+    "gost": {
+      "tool2": "protuberance",
+      "materials": [
+        {
+          "row": "16.1",
+          "label": "Шестерня",
+          "evidence": "Контрольные исходные данные примера",
+          "blank": "forged",
+          "grinding": "none",
+          "rootTreatment": "none",
+          "hb": 280,
+          "hv": 300,
+          "yieldStrength": 700
+        },
+        {
+          "row": "14.2",
+          "label": "Колесо",
+          "evidence": "Контрольные исходные данные примера",
+          "blank": "forged",
+          "grinding": "none",
+          "rootTreatment": "none",
+          "hb": 600,
+          "hv": 680,
+          "hrc": 59,
+          "carbon": 0.85,
+          "smoothSpectrum": true,
+          "coreHrc": 32,
+          "technologyCompliant": true
+        }
+      ],
+      "roots": [
+        {
+          "curveConfirmed": true,
+          "evidence": "Контроль 12а, стандартный исходный контур, точка z=30, x=0"
+        },
+        {
+          "curveConfirmed": true,
+          "evidence": "Контроль 12б, профиль 20°, ha*=1, c*=0,4, ρ*=0,4, Pr/m=0,05, z=60, x=−0,2",
+          "toolProfile": {
+            "alphaDeg": 20,
+            "haStar": 1,
+            "clearanceStar": 0.4,
+            "radiusStar": 0.4,
+            "protuberanceStar": 0.05
+          }
+        }
+      ]
+    }
+  }
+}

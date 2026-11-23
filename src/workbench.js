@@ -3,6 +3,7 @@ import { fmt, escapeHTML as e } from "./format.js";
 export function createWorkbench({ request, getProject, getActive, apply }) {
   const root = document.querySelector("#selection");
   root.innerHTML = `<div class="page-heading"><div><div class="eyebrow">ПОИСК И ОБОСНОВАНИЕ РЕШЕНИЯ</div><h1>Подбор и точность<span>.</span></h1><p>Сначала сравните варианты, затем примените подходящий к проекту.</p></div></div>
+  <p class="selection-scope">Подбор сравнивает числовые условия в заданной области. Неподтверждённые условия ГОСТ сохраняются после применения варианта. <a href="#checks">Проверить выбранную ступень →</a> · <a href="#assembly-checks">Проверить компоновку →</a></p>
   <div class="tool-tabs" role="group" aria-label="Инструменты подбора"><button data-tool="recommend" class="active">Помощник</button><button data-tool="teeth">Зубья · Zubil</button><button data-tool="precision">Точность и допуски</button></div>
   <div id="tool-error" role="alert" hidden class="error-banner"></div>
   <div data-tool-page="recommend"><div class="assistant-intro"><div><span class="eyebrow">ВЫБРАННАЯ СТУПЕНЬ</span><h2 id="assistant-stage">Загрузка проекта…</h2><p>Подбор учитывает опоры и последующие ступени. Материал и нагрузка остаются условиями проекта.</p></div><button class="primary" id="auto-search" disabled>Найти варианты ↗</button></div><div id="recommendations" class="recommendations"></div><div id="search-results"></div>

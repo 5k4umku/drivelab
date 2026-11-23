@@ -6,12 +6,12 @@ The seminar profile is deliberately explicit; provenance travels with every step
 import json
 import math
 from pathlib import Path
-from rating import normative_rating
+from gost_spectrum import stage_rating as normative_rating
 from coefficients import prepare, REGIMES
 from internal import calculate_internal
 from selection import tooth_pairs
 
-VERSION = '0.4.0'
+VERSION = '0.5.0'
 DEFAULTS = json.loads(Path(__file__).with_name('defaults.json').read_text(encoding='utf-8'))
 TABLES = json.loads(Path(__file__).with_name('seminar_tables.json').read_text(encoding='utf-8'))
 MATERIALS = [
@@ -77,12 +77,19 @@ def validate(p):
         if isinstance(default,bool):
             if not isinstance(value,bool): errors.append(f'{key}: требуется логическое значение')
         elif isinstance(default,(int,float)):
-            if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or value<0:
+            if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value) or (value<0 and key not in ('x1','x2')):
                 errors.append(f'{key}: требуется конечное неотрицательное число')
         elif not isinstance(value,str) or len(value)>1000: errors.append(f'{key}: некорректный текст')
     if errors: return errors
+    if 'peakLoad' in p.get('gost',{}):
+        from gost_load import startup_factor
+        try: startup_factor(p['gost']['peakLoad'],p['KA'])
+        except ValueError as error: errors.append(str(error))
     if p['gearType'] not in ('spur','helical','herringbone'): errors.append('Неизвестный тип передачи')
     if p['meshType'] not in ('external','internal'): errors.append('Неизвестный вид зацепления')
+    if p['geometryMode'] not in ('design','given'): errors.append('Выберите подбор или проверку заданной геометрии.')
+    if (p['x1'] or p['x2']) and (p['meshType']=='internal' or p['geometryMode']!='given'):
+        errors.append('Для смещений профиля выберите внешнее зацепление и режим «По чертежу».')
     if p['meshType'] == 'internal':
         if not .1 <= p['manualModule'] <= 50 or not 1 <= p['manualWidth'] <= 2000 or not 1 <= p['ringRim'] <= 500: errors.append('Внутренняя пара: mn=0,1…50 мм, b=1…2000 мм, обод=1…500 мм')
         if any(p[k] != int(p[k]) or not 12 <= p[k] <= 1000 for k in ('manualZ1','manualZ2')) or p['manualZ2'] <= p['manualZ1']: errors.append('Внутренняя пара: целые 12 ≤ z₁ < z₂ ≤ 1000')
@@ -91,7 +98,7 @@ def validate(p):
     if p['loadRegime'] not in (*REGIMES, 'manual'): errors.append('Режим нагрузки: 0–V или ручной')
     if p['loadRegime'] != 'manual' and p['mF'] not in (6,9): errors.append('Для табл.35 qF должен быть 6 или 9')
     if p['loadDirection'] not in ('manual','oneway','reversing'): errors.append('Неизвестный тип нагрузки')
-    if p['loadDirection'] == 'reversing' and (p['treatment1'] != 'У' or p['treatment2'] != 'У'): errors.append('Автоматический реверс реализован для У / У')
+    if p['loadDirection'] == 'reversing' and not p.get('gost',{}).get('materials') and (p['treatment1'] != 'У' or p['treatment2'] != 'У'): errors.append('Автоматический реверс реализован для У / У')
     if p['materialMode'] not in ('table','custom'): errors.append('Неизвестный способ задания материала')
     if p['selectionPolicy'] not in ('precision','zubil'): errors.append('Подбор: точность или Zubil')
     if p['rootFinish'] not in ('cut','polished'): errors.append('Обработка корня: нарезание/шлифование или полирование')
@@ -116,7 +123,7 @@ def validate(p):
     except ValueError: errors.append('Модули: 1…30 чисел от 0,1 до 50 мм через пробел')
     return errors
 
-def calculate(p, compare=False):
+def _calculate(p, compare=False):
     if not isinstance(p,dict): return dict(errors=['Исходные данные должны быть объектом JSON'],trace=[],checks=[],variants=[])
     p={**DEFAULTS,**p}
     errors=validate(p)
@@ -127,6 +134,10 @@ def calculate(p, compare=False):
         try: p=material_pair(p)
         except ValueError as error: return dict(errors=[str(error)],trace=[],checks=[],variants=[])
     if p['meshType'] == 'internal': return calculate_internal(p)
+    if p['geometryMode'] == 'given':
+        from given_pair import calculate_given
+        try: return calculate_given(p, rating_inputs)
+        except (ValueError, OverflowError) as error: return dict(errors=[str(error)],trace=[],checks=[],variants=[])
     trace,checks=[],[]
     def step(section,title,formula,sub,value,unit='',source='Семинары: бланк и таблицы Т1–Т9'):
         trace.append(dict(section=section,title=title,formula=formula,substitution=sub,value=value,unit=unit,source=source))
@@ -238,7 +249,7 @@ def calculate(p, compare=False):
     for variant in variants:
         trial=normative_rating(rating_inputs(p,variant),variant,b,T)
         variant['contactMargin']=trial.get('marginH')
-        variant['bendingMargin']=min(trial['marginF']) if trial.get('marginF') else None
+        variant['bendingMargin']=min(trial['marginF']) if trial.get('marginF') and None not in trial['marginF'] else None
     check('Твёрдость шестерни выше твёрдости колеса',p['hb1min']>p['hb2min'] and p['hb1max']>p['hb2max'],f"Шестерня {p['hb1min']}–{p['hb1max']} HB; колесо {p['hb2min']}–{p['hb2max']} HB. Сравниваются заданные диапазоны; они могут пересекаться.")
     if p['treatment1']==p['treatment2']=='У': check('Колесо на две строки мягче при У / У',p['row1']==p['row2']+2 if p['materialMode']=='table' else 'pending',f"Класс шестерни {p['rowName1']}; колеса {p['rowName2']}. Для пользовательских свойств привязка к двум строкам таблицы не подтверждена.")
     check('Строки материалов',True if p['materialConfirmed'] else 'pending',p['materialSource'])
@@ -292,7 +303,13 @@ def calculate(p, compare=False):
         table_ok=all(table_fpb(c['m'],c[f'd{i}'],p['accuracy']) is not None for i in (1,2)) and c['v']<=vmax
         rp=rating_inputs(p,c)
         check(f"Применимость Т7 для точности {p['accuracy']}",table_ok,f"Т7 для выбранных mn и d: fpb₁ = {rp['fpb1']} мкм, fpb₂ = {rp['fpb2']} мкм. Предельная скорость {vmax} м/с. За границей таблицы автоматическая проверка прочности не выполняется.")
-        check('Табличные коэффициенты нагрузки',True if p['factorsConfirmed'] and table_ok and p['psiBd']==.6 and c['m']<=3.5 else 'pending','Т5 исходного варианта: оба колеса консольно, выходной вал на шарикоподшипниках; ψbd = 0,6. При изменении ширины или модульной группы требуется повторный выбор проектировочных факторов.')
+        face_source = ('Для выбора по Т5 требуется компоновка редуктора.'
+                       if p['faceMode'] == 'seminar' else 'Коэффициенты предварительного расчёта заданы во входных данных.')
+        check('Табличные коэффициенты нагрузки',
+              True if p['factorsConfirmed'] and table_ok and p['psiBd']==.6 and c['m']<=3.5 else 'pending',
+              f"Схема опор в расчёте отдельной пары неизвестна. {face_source} "
+              f"ψbd={f(p['psiBd'])}, KHβ={f(p['KHbeta'])}, KFβ={f(p['KFbeta'])}. "
+              "При изменении ширины или модульной группы проверьте коэффициенты заново.")
         rating=normative_rating(rp,c,b,T,step,check)
     status='fail' if any(c['status']=='fail' for c in checks) else 'pending' if any(c['status']=='pending' for c in checks) else 'pass'
     out=dict(errors=[],input=p,trace=trace,checks=checks,status=status,variants=variants,recommended=recommended,chosen=chosen,T=T,hp=hp,fp=fp,HP=HP,FP=FP,psi=psi,ap=ap,ac=ac,a=a,b=b,mmin=mmin,mmax=mmax,khv=khv,kfv=kfv,kha=kha,kfa=kfa,rating=rating,coefficientAudit=coefficient_audit)
@@ -305,6 +322,21 @@ def calculate(p, compare=False):
             if oc:
                 out['sizeComparison'].append(dict(a=center,b=other['b'],m=oc['m'],z1=oc['z1'],z2=oc['z2'],contactMargin=rt.get('marginH'),stress=rt.get('h'),allowable=rt.get('hAllow'),tablesValid=not rating_inputs(p,oc).get('_tableMissing',False),status=other['status']))
     return out
+
+
+def calculate(p, compare=False):
+    result = _calculate(p,compare)
+    params = result.get('input',{})
+    if result.get('chosen') and 'design' in params.get('gost',{}):
+        from gost_design import project_design
+        design = project_design(params,result['chosen'],result['b'],result['T'],result['rating'] or {})
+        result['design'] = design
+        if design['available']:
+            result['trace'].extend(dict(section='9. Проектировочный расчёт по ГОСТ', **x) for x in design['trace'])
+        else:
+            result['checks'].append(dict(title='Проектировочный расчёт по приложению 1',status='pending',detail=design['reason']))
+            if result['status']=='pass': result['status']='pending'
+    return result
 
 def calculate_json(payload):
     return json.dumps(calculate(json.loads(payload),compare=True),ensure_ascii=False,allow_nan=False)

@@ -8,7 +8,7 @@ import copy
 import json
 import math
 from engine import DEFAULTS, calculate, f
-from coefficients import layout_case, t5_factor, T5_NAMES
+from coefficients import gear_position, layout_case, t5_factor, T5_NAMES
 from motor import resolve_motor
 
 LAYOUTS = ('centered', 'offset', 'overhung-left', 'overhung-right', 'manual')
@@ -155,7 +155,7 @@ def calculate_assembly(project, active_index=0, _iteration=0):
                  contact_sign*(-signs*c['Ft']*direction[0] - c['Fr']*direction[1]), signs*hand*c['Fa']]
         for side in (1, 2):
             center = axis if side == 1 else next_axis
-            pitch = c[f'd{side}']/2
+            pitch = c.get(f'dw{side}', c[f'd{side}'])/2
             gears.append(dict(stage=i, shaft=i+side-1, side=side, x=center[0], y=center[1], z=z,
                               width=r['b'], radius=(c['outerDiameter'] if internal and side == 2 else c[f'da{side}'])/2, rootRadius=c[f'df{side}']/2,
                               innerRadius=c['da2']/2 if internal and side == 2 else 0,
@@ -230,6 +230,35 @@ def calculate_assembly(project, active_index=0, _iteration=0):
         if _iteration >= 8:
             return dict(errors=['Выбор Т5 и компоновки не сошёлся за 9 пересчётов. Зафиксируйте опоры или задайте коэффициенты вручную.'], stages=[], shafts=[], checks=[])
         return calculate_assembly(project, active_index, _iteration+1)
+    positions = {'console': 'консольно', 'symmetric': 'по центру пролёта', 'offset': 'со смещением в пролёте'}
+    bearings = {'ball': 'шариковые опоры', 'roller': 'роликовые опоры'}
+    for i, stage in enumerate(stages):
+        result = stage['result']
+        item = next((c for c in result['checks'] if c['title'] == 'Табличные коэффициенты нагрузки'), None)
+        if item is None:
+            continue
+        z = stage['axial']
+        layout = []
+        for member, shaft in zip(('Шестерня', 'Колесо'), shafts[i:i+2]):
+            position = positions[gear_position(z, shaft)]
+            za, zb = shaft['A']['z'], shaft['B']['z']
+            if z == za or z == zb:
+                position = 'на границе пролёта'
+            layout.append(f"{member}: {position}, {bearings[shaft['bearing']]} "
+                          f"(венец z={f(z)} мм, опоры z={f(za)} и {f(zb)} мм).")
+        inp = result['input']
+        selection = stage.get('faceSelection')
+        if selection:
+            lo, hi = selection['lower'], selection['upper']
+            lookup = f'строка ψbd={f(lo)}' if lo == hi else f'интерполяция между ψbd={f(lo)} и {f(hi)}'
+            source = f"Источник коэффициентов предварительного расчёта: Т5 семинара, «{selection['label']}», {lookup}."
+        else:
+            source = 'Коэффициенты предварительного расчёта заданы во входных данных. Т5 не применялась.'
+        item['detail'] = (
+            f"{' '.join(layout)} {source} ψbd={f(inp['psiBd'])}, "
+            f"KHβ={f(inp['KHbeta'])}, KFβ={f(inp['KFbeta'])}. "
+            "При изменении ширины или модульной группы проверьте коэффициенты заново."
+        )
     collisions = []
     for index, a in enumerate(gears):
         for b in gears[index+1:]:
@@ -256,7 +285,7 @@ def calculate_assembly(project, active_index=0, _iteration=0):
     check('Прочность валов и ресурс подшипников', 'pending',
           'Выполнена статическая схема двух опор. Номера подшипников, концентрация напряжений, усталость, прогибы, масса деталей и внешние нагрузки на концы валов в эту модель не входят.')
     check('Область конструктора', 'pending',
-          'Последовательные цилиндрические зацепления на параллельных валах, x₁ = x₂ = 0. Для внутренней пары доступны заданная геометрия и кинематика; прочность и полная интерференция не подтверждены. Разветвление мощности и упругие многоопорные валы требуют других моделей.')
+          'Последовательные цилиндрические зацепления на параллельных валах. Для внутренней пары доступны заданная геометрия и кинематика; прочность и полная интерференция не подтверждены. Разветвление мощности и упругие многоопорные валы требуют других моделей.')
     check('Баланс мощности', abs(power-project['power']*efficiency) < 1e-8,
           f"Pвыход = {f(power)} кВт; потери = {f(project['power']-power)} кВт; ηΣ = {f(efficiency)}.")
     target_ratio = math.prod(s['result']['input']['ratio'] for s in stages)

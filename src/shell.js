@@ -57,7 +57,8 @@ export function setupShell() {
     }
   });
   function route() {
-    const id = Object.hasOwn(labels, location.hash.slice(1))
+    const assemblyChecks = location.hash === "#assembly-checks";
+    const id = assemblyChecks ? "constructor" : Object.hasOwn(labels, location.hash.slice(1))
       ? location.hash.slice(1)
       : "constructor";
     for (const page of document.querySelectorAll(".page-section"))
@@ -75,6 +76,12 @@ export function setupShell() {
     syncMenu();
     document.body.dataset.page = id;
     window.scrollTo({ top: 0, behavior: "instant" });
+    if (assemblyChecks) {
+      const checks = document.querySelector("#assembly-checks");
+      checks.tabIndex = -1;
+      checks.scrollIntoView({ block: "start" });
+      checks.focus({ preventScroll: true });
+    }
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
   }
   addEventListener("hashchange", route);
@@ -123,4 +130,102 @@ export function setupShell() {
   hint.innerHTML =
     '<span>01 <b>Соберите схему</b></span><i>→</i><a href="#selection">02 <b>Подберите параметры</b></a><i>→</i><a href="#checks">03 <b>Проверьте и сохраните</b></a>';
   root.querySelector(".page-heading").after(hint);
+
+  // Подробный расчёт — отдельный экран, а не скрытый якорь компоновки.
+  root.addEventListener("click", (event) => {
+    if (event.target.closest("[data-detail]"))
+      queueMicrotask(() => {
+        location.hash = "overview";
+      });
+  });
+  const projectNotice = document.createElement("section");
+  projectNotice.className = "review-notice";
+  projectNotice.setAttribute("aria-label", "Итог проверок компоновки");
+  projectNotice.setAttribute("aria-live", "polite");
+  hint.after(projectNotice);
+  // Размеры и нагрузки остаются узлами результата расчёта, рядом со сценой.
+  const gearView = document.querySelector("#gear-view");
+  gearView.after(document.querySelector("#metrics"));
+  document.querySelector("#metrics").setAttribute("aria-label", "Геометрия и нагрузка выбранной ступени");
+  studio.append(document.querySelector("#assembly-metrics"));
+  const checksNotice = document.createElement("section");
+  checksNotice.className = "review-notice";
+  checksNotice.setAttribute("aria-label", "Область проверки выбранной ступени");
+  const checksPage = document.querySelector("#checks");
+  checksPage.querySelector(".section-heading").after(checksNotice);
+  const context = document.createElement("p");
+  context.className = "stage-context";
+  context.setAttribute("aria-live", "polite");
+  document.querySelector(".topbar").after(context);
+  const write = (node, text) => {
+    if (node.textContent !== text) node.textContent = text;
+  };
+  const make = (tag, text) => {
+    const node = document.createElement(tag);
+    node.textContent = text;
+    return node;
+  };
+  const cards = (selector) => [...document.querySelectorAll(selector)].map((card) => ({
+    title: card.querySelector("h3")?.textContent || "",
+    detail: card.querySelector("p")?.textContent || "",
+    failed: !!card.querySelector(".check-symbol.fail"),
+    pending: !!card.querySelector(".check-symbol.pending"),
+  }));
+  let noticeStamp = "";
+  function review() {
+    document.querySelectorAll(".segmented [data-type]").forEach((button) =>
+      button.setAttribute("aria-pressed", String(button.classList.contains("selected"))),
+    );
+    const stage = document.querySelector("#active-stage-label")?.textContent ||
+      document.querySelector(".variant-label strong")?.textContent || "Ступень ещё не рассчитана";
+    write(context, stage);
+    const assembly = cards("#assembly-checks .check"),
+      selected = cards("#checks-list .check"),
+      busy = root.classList.contains("builder-busy") || root.classList.contains("builder-invalid"),
+      stageStatus = document.querySelector("#summary-status")?.textContent || "";
+    const stamp = JSON.stringify([stage, assembly, selected, busy, stageStatus]);
+    if (stamp === noticeStamp) return;
+    noticeStamp = stamp;
+    const failures = assembly.filter((c) => c.failed),
+      pending = assembly.filter((c) => c.pending),
+      ratio = assembly.find((c) => c.title === "Общее передаточное число");
+    projectNotice.dataset.status = busy || !assembly.length ? "pending" : failures.length ? "fail" : "pending";
+    const title = make("h2", busy ? "Компоновка: результат обновляется или недоступен" : !assembly.length ?
+      "Компоновка: ожидаем расчёт" : failures.length ? `Компоновка: не выполнено проверок — ${failures.length}` :
+      "Компоновка: числовые проверки выполнены");
+    const link = make("a", "Все проверки компоновки →");
+    link.href = "#assembly-checks";
+    link.onclick = () => { if (location.hash === link.hash) route(); };
+    const nodes = [title];
+    if (!busy && ratio) nodes.push(make("p", `${ratio.failed ? "Не выполнено" : "Выполнено"}: ${ratio.title}. ${ratio.detail}`));
+    if (!busy && failures.some((c) => c !== ratio)) nodes.push(make("p", `Требуют исправления: ${failures.filter((c) => c !== ratio).map((c) => c.title).join("; ")}.`));
+    const scope = document.createElement("details");
+    scope.append(make("summary", `Область расчёта${!busy && assembly.length ? ` · уточнить условий: ${pending.length}` : ""}`),
+      make("p", "Прочность ступеней проверяется отдельно. Статика и габариты не подтверждают прочность валов и ресурс подшипников."));
+    nodes.push(scope, link);
+    projectNotice.replaceChildren(...nodes);
+    const unresolved = selected.filter((c) => c.failed || c.pending);
+    checksNotice.dataset.status = selected.some((c) => c.failed) ? "fail" : "pending";
+    const checksNodes = [make("h3", stage), make("p", busy ? "Результат обновляется или недоступен. Предыдущие числа не подтверждают текущие исходные данные." : stageStatus || "Ожидаем проверку ступени."),
+      make("p", "Это проверки выбранной ступени. Выполнение числовых условий не подтверждает исходные технологические данные и все случаи ГОСТ.")];
+    if (!busy && ratio?.failed) checksNodes.push(make("p", `В компоновке не выполнено общее передаточное число. ${ratio.detail}`));
+    if (!busy && unresolved.length) {
+      const details = document.createElement("details");
+      details.append(make("summary", `Отказы и неподтверждённые условия: ${unresolved.length}`));
+      const list = document.createElement("ul");
+      unresolved.forEach((c) => list.append(make("li", `${c.title}: ${c.detail}`)));
+      details.append(list);
+      checksNodes.push(details);
+    }
+    const back = make("a", "Проверки всего редуктора →");
+    back.href = "#assembly-checks";
+    checksNodes.push(back);
+    checksNotice.replaceChildren(...checksNodes);
+  }
+  const reviewObserver = new MutationObserver((records) => {
+    if (records.some((record) => ![projectNotice, checksNotice, context].some((node) => node === record.target || node.contains(record.target)))) review();
+  });
+  reviewObserver.observe(document.querySelector("main"), { childList: true, subtree: true });
+  reviewObserver.observe(root, { attributes: true, attributeFilter: ["class"] });
+  review();
 }

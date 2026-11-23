@@ -94,5 +94,8 @@
   "manualWidth": 30,
   "manualBeta": 15,
   "ringRim": 10,
+  "geometryMode": "design",
+  "x1": 0,
+  "x2": 0,
   "selectionPolicy": "precision"
 }

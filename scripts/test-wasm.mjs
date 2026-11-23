@@ -8,20 +8,8 @@ const { loadPyodide } = require("../vendor/pyodide/pyodide.js");
 const py = await loadPyodide({
   indexURL: resolve(root, "vendor/pyodide") + "/",
 });
-for (const name of [
-  "engine.py",
-  "selection.py",
-  "automation.py",
-  "tolerances.py",
-  "rating.py",
-  "coefficients.py",
-  "motor.py",
-  "internal.py",
-  "motors.json",
-  "defaults.json",
-  "seminar_tables.json",
-  "assembly.py",
-])
+const files = JSON.parse(await readFile(resolve(root, "src/python-files.json"), "utf8"));
+for (const name of files)
   py.FS.writeFile(
     "/home/pyodide/" + name,
     await readFile(resolve(root, "src", name), "utf8"),
@@ -148,3 +136,67 @@ for (const name of ["internal-pair", "reducer-editor"]) {
   }
   console.log(name + ": CPython / WebAssembly совпадают.");
 }
+
+const annex = JSON.parse(await readFile(resolve(root, "examples/gost-annex-11.json"), "utf8"));
+function calculateStage(input) {
+  py.globals.set("payload", JSON.stringify(input));
+  const assembly = JSON.parse(py.runPython(
+    "assembly_json(json.dumps({'project': from_single(json.loads(payload))}))",
+  ));
+  assert.deepEqual(assembly.errors, []);
+  return assembly.stages[0].result;
+}
+py.runPython("import json");
+const stage = calculateStage(annex.input);
+assert.equal(stage.rating.mandatoryPending, true);
+assert.ok(Math.abs(stage.rating.h - 764.41) < 0.02);
+for (const [i, expected] of [227.85, 217.01].entries())
+  assert.ok(Math.abs(stage.rating.fs[i] - expected) < 0.02);
+const spectrum = [{ torqueRatio: 1, timeFraction: 1 }];
+for (const method of ["cycles", "stresses"]) {
+  const r = calculateStage({ gost: { spectrum, spectrumMethod: method } }).rating;
+  assert.equal(r.available, true);
+  assert.equal(r.method, "gost-spectrum-" + method);
+  assert.ok(Number.isFinite(r.hmax));
+  if (method === "stresses") {
+    assert.equal(r.h, null);
+    assert.equal(r.mandatoryPending, true);
+  }
+}
+const withCriteria = calculateStage({ gost: { criteria: { lifeLimitHours: 100000 } } });
+assert.ok(withCriteria.rating.criteria.life.hours > 0);
+console.log("Приложение 11, циклограммы и критерий ресурса проверены в сборке редуктора WASM.");
+
+for (const loads of [[2], [1, -2], [1, 2]]) {
+  const spectrum = loads.map(torqueRatio => ({torqueRatio, timeFraction: 1 / loads.length}));
+  const stage = calculateStage({startup: 1, KA: 1, life: 20000, autoTables: false,
+    gost: {spectrum, spectrumMethod: "cycles", design: {}}});
+  assert.equal(stage.rating.available, true);
+  if (loads[1] === 2) {
+    assert.equal(stage.design.available, false);
+    assert.match(stage.design.reason, /нагрузка по истории/);
+    continue;
+  }
+  assert.equal(stage.design.cases.length, loads.length);
+  for (const [i, item] of stage.design.cases.entries()) {
+    assert.ok(Math.abs(item.T2H - stage.T * stage.chosen.u * Math.abs(loads[i])) < 1e-8);
+    assert.equal(item.T2F, item.T2H);
+    if (i === 1) assert.equal(item.side, "обратный ход");
+  }
+}
+console.log("Раздел 5: фактические моменты, реверс и ограничение переменной нагрузки проверены.");
+
+const rootExample = JSON.parse(await readFile(resolve(root, "examples/gost-root-fatigue.json"), "utf8")).input;
+const rootsStage = calculateStage(rootExample);
+assert.equal(rootsStage.rating.available, true, rootsStage.rating.reason);
+for (const [i, value] of [.938966447, .912194723].entries()) {
+  assert.ok(Math.abs(rootsStage.rating.roots[i].Ydelta - value) < 1e-8);
+  assert.ok(rootsStage.trace.some(s => s.title === "Yδ" + (i+1) && Math.abs(s.value - value) < 1e-8));
+}
+for (const radius of [7, 7.0001]) {
+  const measured = {radiusMm: radius, uncertaintyMm: 0, section: "Нормальное сечение", evidence: "Контроль"};
+  const result = calculateStage({...rootExample, gost: {...rootExample.gost, roots: [measured, measured]}});
+  const expected = radius === 7 ? [.874891363, .874891363] : [.942374152, .926780523];
+  expected.forEach((value,i) => assert.ok(Math.abs(result.rating.roots[i].Ydelta - value) < 1e-8));
+}
+console.log("Yδ обоих венцов и порог 7 мм проверены в WASM.");

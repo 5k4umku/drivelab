@@ -507,3 +507,13 @@
   background: #eaf2ee;
   color: #36705b;
 }
+
+@media (max-width: 800px) {
+  .builder-card-actions { flex-wrap: wrap; gap: 8px; }
+  .builder-card-actions button { min-height: 44px; min-width: 44px; }
+  .builder-card-actions [data-detail] { flex-basis: 100%; text-align: left; }
+  .builder-section-title { flex-wrap: wrap; gap: 12px; }
+  .builder-fields, .builder-global { min-width: 0; }
+  .builder-field { min-width: 0; overflow-wrap: anywhere; }
+  .builder-field input, .builder-field select { width: 100%; min-width: 0; }
+}
