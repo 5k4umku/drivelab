@@ -549,9 +549,45 @@ fieldset select,
 .segmented button {
   color: var(--muted);
 }
-.segmented .selected {
+.segmented button.selected {
   background: var(--surface);
   color: var(--green);
+}
+
+.stage-context {
+  margin: 0;
+  padding: 10px 38px;
+  border-bottom: 1px solid var(--line);
+  color: var(--green);
+  font-weight: 600;
+}
+.review-notice {
+  padding: 18px 20px;
+  margin: 18px 0;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--amber);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.review-notice[data-status="fail"] { border-left-color: var(--red); }
+.review-notice h2, .review-notice h3 { margin: 0 0 8px; font-size: 16px; }
+.review-notice p, .review-notice li, .selection-scope {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.review-notice p { margin: 8px 0; }
+.review-notice a, .selection-scope a { color: var(--green); text-decoration: underline; }
+.review-notice summary { cursor: pointer; padding: 10px 0; }
+.review-notice li { margin-bottom: 10px; }
+.selection-scope { color: var(--muted); margin-bottom: 18px; }
+#assembly-checks { scroll-margin-top: 130px; }
+@media (max-width: 800px) {
+  .stage-context { padding: 10px 16px; font-size: 13px; }
+  .type-row .variant-label { display: block; width: 100%; font-size: 12px; }
+  .review-notice { padding: 14px; }
+  .review-notice h2, .review-notice h3 { line-height: 1.5; }
+  #assembly-checks { scroll-margin-top: 145px; }
 }
 .table-wrap {
   border-radius: 12px;
@@ -1389,4 +1425,87 @@ footer {
     scroll-behavior: auto !important;
     transition: none !important;
   }
+}
+
+/* Поле модели и полоса расчётных подписей образуют одну рабочую поверхность. */
+.type-row .variant-label { display: none; }
+.viewer-card, .studio {
+  border-radius: 12px;
+  box-shadow: none;
+}
+.viewer-top, .studio-heading, .scene-tools, .playback, .model-footnote {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.viewer-top > span, .scene-tools label, .scene-mode-note,
+.viewer-legend, .playback, .model-footnote {
+  color: var(--muted) !important;
+}
+.viewer-button, .scene-tools button {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.viewer-button.active, .scene-tools button[aria-pressed="true"] {
+  background: var(--accent);
+  color: #143b39;
+  border-color: var(--accent);
+}
+.model-layout { align-items: start; grid-template-columns: minmax(0, 1fr) 270px; }
+.model-layout .design-card {
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.viewer-card #metrics, .studio #assembly-metrics {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.viewer-card #metrics .metric, .studio #assembly-metrics .metric {
+  border: 0;
+  border-right: 1px solid var(--line);
+  padding: 14px 12px;
+  border-radius: 0;
+  box-shadow: none;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.viewer-card #metrics .metric:last-child, .studio #assembly-metrics .metric:last-child { border-right: 0; }
+.viewer-card #metrics strong, .studio #assembly-metrics strong { font-size: 21px; }
+.viewer-card #metrics label, .studio #assembly-metrics label { font-size: 10px; line-height: 1.5; }
+.viewer-card #metrics small, .studio #assembly-metrics small { font-size: 10px; line-height: 1.5; }
+#gear-view, #assembly-view { height: clamp(340px, 40vw, 520px); }
+.review-notice { border-radius: 8px; }
+.review-notice summary { font-size: 12px; padding: 5px 0; }
+.scene-tools input[type="range"] { flex: 1; min-width: 100px; max-width: 230px; }
+.scene-tools { gap: 10px; }
+:is(.viewer-button, .scene-tools button, .tool-tabs button):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+@media (max-width: 1000px) {
+  .model-layout { grid-template-columns: minmax(0, 1fr); }
+  .model-layout .design-card { border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (max-width: 800px) {
+  #gear-view, #assembly-view { height: 340px; }
+  .viewer-card #metrics, .studio #assembly-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .viewer-card #metrics .metric, .studio #assembly-metrics .metric { padding: 12px; border-bottom: 1px solid var(--line); }
+  .viewer-card #metrics .metric:nth-child(2n), .studio #assembly-metrics .metric:nth-child(2n) { border-right: 0; }
+  .viewer-top, .studio-heading { padding: 12px; }
+  .viewer-top { flex-wrap: wrap; }
+  .viewer-button, .scene-tools button { min-height: 44px; min-width: 44px; }
+  .scene-tools label { width: 100%; justify-content: space-between; }
+  .scene-tools input[type="range"] { max-width: none; }
+  .model-footnote { font-size: 11px !important; line-height: 1.6; }
+  .review-notice h2 { font-size: 14px; }
+  .review-notice p { font-size: 12px; }
 }
