@@ -47,12 +47,15 @@ def t5_factor(width, case):
     return None
 
 
+def gear_position(z, shaft):
+    a, b = shaft['A']['z'], shaft['B']['z']
+    if z <= a or z >= b:
+        return 'console'
+    return 'symmetric' if abs(z-(a+b)/2) <= 1e-6 else 'offset'
+
+
 def layout_case(z, shafts, axial_force):
-    positions = []
-    for s in shafts:
-        a, b = s['A']['z'], s['B']['z']
-        positions.append('console' if z <= a or z >= b else
-                         'symmetric' if abs(z-(a+b)/2) <= 1e-6 else 'offset')
+    positions = [gear_position(z, shaft) for shaft in shafts]
     if 'console' in positions:
         # Наиболее податливый из консольных валов определяет столбец Т5.
         ball = any(s['bearing'] == 'ball' for s, pos in zip(shafts, positions) if pos == 'console')

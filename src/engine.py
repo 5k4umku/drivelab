@@ -303,7 +303,13 @@ def _calculate(p, compare=False):
         table_ok=all(table_fpb(c['m'],c[f'd{i}'],p['accuracy']) is not None for i in (1,2)) and c['v']<=vmax
         rp=rating_inputs(p,c)
         check(f"Применимость Т7 для точности {p['accuracy']}",table_ok,f"Т7 для выбранных mn и d: fpb₁ = {rp['fpb1']} мкм, fpb₂ = {rp['fpb2']} мкм. Предельная скорость {vmax} м/с. За границей таблицы автоматическая проверка прочности не выполняется.")
-        check('Табличные коэффициенты нагрузки',True if p['factorsConfirmed'] and table_ok and p['psiBd']==.6 and c['m']<=3.5 else 'pending','Т5 исходного варианта: оба колеса консольно, выходной вал на шарикоподшипниках; ψbd = 0,6. При изменении ширины или модульной группы требуется повторный выбор проектировочных факторов.')
+        face_source = ('Для выбора по Т5 требуется компоновка редуктора.'
+                       if p['faceMode'] == 'seminar' else 'Коэффициенты предварительного расчёта заданы во входных данных.')
+        check('Табличные коэффициенты нагрузки',
+              True if p['factorsConfirmed'] and table_ok and p['psiBd']==.6 and c['m']<=3.5 else 'pending',
+              f"Схема опор в расчёте отдельной пары неизвестна. {face_source} "
+              f"ψbd={f(p['psiBd'])}, KHβ={f(p['KHbeta'])}, KFβ={f(p['KFbeta'])}. "
+              "При изменении ширины или модульной группы проверьте коэффициенты заново.")
         rating=normative_rating(rp,c,b,T,step,check)
     status='fail' if any(c['status']=='fail' for c in checks) else 'pending' if any(c['status']=='pending' for c in checks) else 'pass'
     out=dict(errors=[],input=p,trace=trace,checks=checks,status=status,variants=variants,recommended=recommended,chosen=chosen,T=T,hp=hp,fp=fp,HP=HP,FP=FP,psi=psi,ap=ap,ac=ac,a=a,b=b,mmin=mmin,mmax=mmax,khv=khv,kfv=kfv,kha=kha,kfa=kfa,rating=rating,coefficientAudit=coefficient_audit)
