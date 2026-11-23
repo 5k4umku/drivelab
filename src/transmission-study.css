@@ -1,0 +1,131 @@
+#assembly-view:has(.transmission-study) {
+  position: relative;
+}
+.transmission-study {
+  position: absolute;
+  z-index: 2;
+  inset: 12px 12px auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: none;
+  color: #f9f1e8;
+  font-family: var(--sans, "Segoe UI", sans-serif);
+}
+.study-tool,
+.study-readout {
+  background: #171917;
+  border: 1px solid #535047;
+  box-shadow: 0 3px 16px #10100e59;
+}
+.study-tool {
+  max-width: 100%;
+  padding: 8px;
+  pointer-events: auto;
+}
+.study-label,
+.study-stage {
+  display: block;
+  margin: 1px 0 6px;
+  color: #e9b58e;
+  font-size: .8125rem;
+  font-weight: 650;
+  letter-spacing: .025em;
+}
+.study-modes {
+  display: flex;
+  gap: 3px;
+}
+.study-modes button {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #47453e;
+  border-radius: 0;
+  background: #292a26;
+  color: #fff4e8;
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 650;
+}
+.study-modes button[aria-pressed="true"] {
+  border-color: #ff9855;
+  background: #ff9855;
+  color: #24150c;
+}
+.study-modes button:focus-visible,
+.study-range input:focus-visible {
+  outline: 2px solid #fff4e8;
+  outline-offset: 2px;
+}
+.study-range {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 2px 1px;
+  font-size: .8125rem;
+}
+.study-range[hidden] {
+  display: none;
+}
+.study-range input {
+  min-width: 45px;
+  width: 100%;
+  accent-color: #ff9855;
+}
+.study-range output {
+  min-width: 3em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.study-readout {
+  display: grid;
+  justify-items: end;
+  min-width: 100px;
+  padding: 8px 11px 9px;
+  text-align: right;
+}
+.study-ratio {
+  font: 600 1.12rem var(--mono, Consolas, monospace);
+}
+.study-dimension {
+  margin-top: 5px;
+  font-size: .8rem;
+  color: #e7dacf;
+}
+@media (max-width: 630px) {
+  .transmission-study {
+    inset: 7px 7px auto;
+  }
+  .study-tool {
+    padding: 6px;
+  }
+  .study-label {
+    margin-bottom: 4px;
+  }
+  .study-modes button {
+    min-height: 44px;
+    padding: 0 7px;
+    font-size: .8125rem;
+  }
+  .study-readout {
+    min-width: 0;
+    padding: 6px;
+  }
+  .study-stage {
+    margin-bottom: 4px;
+    font-size: .75rem;
+  }
+  .study-ratio {
+    font-size: .875rem;
+  }
+  .study-dimension {
+    display: none;
+  }
+}
+@media (max-width: 370px) {
+  .study-readout {
+    display: none;
+  }
+}

@@ -1,11 +1,13 @@
 import { prepareSceneEffects } from "./scene-effects.js";
 import * as THREE from "three";
-import { GearViewer, gearGeometry } from "./viewer.js";
+import { GearViewer, gearGeometry, sceneAccent, steelMaterial } from "./viewer.js";
 
-const colors = [0x75c9ab, 0x98b8ce, 0xd6b383, 0xac9ece, 0x88bfc4, 0xcda3a3];
+const selectedSteel = new THREE.Color(0xb6b8bb).lerp(new THREE.Color(sceneAccent), 0.55);
+
 export class AssemblyViewer extends GearViewer {
-  update(result) {
+  update(result, activeStage = 0) {
     this.result = result;
+    this.activeStage = Number.isInteger(activeStage) && result.stages[activeStage] ? activeStage : 0;
     this.theta = 0;
     for (const child of [...this.model.children]) {
       this.model.remove(child);
@@ -15,12 +17,6 @@ export class AssemblyViewer extends GearViewer {
       });
     }
     this.rotors = [];
-    const material = (color) =>
-      new THREE.MeshStandardMaterial({
-        color,
-        metalness: 0.35,
-        roughness: 0.4,
-      });
     for (const shaft of result.shafts) {
       const rotor = new THREE.Group();
       rotor.position.set(shaft.x, shaft.y, 0);
@@ -33,7 +29,7 @@ export class AssemblyViewer extends GearViewer {
           shaft.zMax - shaft.zMin,
           24,
         ),
-        material(0x566e7d),
+        steelMaterial(0x85888e),
       );
       body.rotation.x = Math.PI / 2;
       body.position.z = (shaft.zMax + shaft.zMin) / 2;
@@ -46,7 +42,8 @@ export class AssemblyViewer extends GearViewer {
             8,
             28,
           ),
-          material(name === shaft.locating ? 0xc99850 : 0x566477),
+          // Polished fixed rings remain distinct from the darker floating rings.
+          steelMaterial(name === shaft.locating ? 0xe3e3e1 : 0x686a70),
         );
         support.position.set(shaft.x, shaft.y, shaft[name].z);
         this.model.add(support);
@@ -58,7 +55,7 @@ export class AssemblyViewer extends GearViewer {
               4,
               28,
             ),
-            material(0xaac1cf),
+            steelMaterial(0xbfc0c3),
           );
           collar.position.set(
             shaft.x,
@@ -80,7 +77,7 @@ export class AssemblyViewer extends GearViewer {
           stage.result.input.gearType,
           stage.hand === "left" ? -1 : 1,
         ),
-        material(colors[gear.stage % colors.length]),
+        steelMaterial(gear.stage === this.activeStage ? selectedSteel : 0x96999e),
       );
       mesh.position.z = gear.z;
       mesh.userData.explodeDirection = new THREE.Vector3(
@@ -105,7 +102,7 @@ export class AssemblyViewer extends GearViewer {
         z = s.zMin - length / 2 - 25;
       const body = new THREE.Mesh(
         new THREE.CylinderGeometry(r, r, length, 32),
-        material(0x527082),
+        steelMaterial(0x74767b),
       );
       body.rotation.x = Math.PI / 2;
       body.position.set(s.x, s.y, z);
@@ -113,20 +110,20 @@ export class AssemblyViewer extends GearViewer {
       for (let i = 0; i < 10; i++) {
         const rib = new THREE.Mesh(
           new THREE.TorusGeometry(r + 2, 2, 4, 32),
-          material(0x668597),
+          steelMaterial(0xa1a3a5),
         );
         rib.position.set(s.x, s.y, z - length * 0.4 + (length * 0.8 * i) / 9);
         this.model.add(rib);
       }
       const feet = new THREE.Mesh(
         new THREE.BoxGeometry(r * 2.1, 10, length * 0.7),
-        material(0x3c596c),
+        steelMaterial(0x64666b),
       );
       feet.position.set(s.x, s.y - r, z);
       this.model.add(feet);
       const coupling = new THREE.Mesh(
         new THREE.CylinderGeometry(s.diameter * 0.8, s.diameter * 0.8, 35, 20),
-        material(0xb4a176),
+        steelMaterial(0xafb0b2),
       );
       coupling.rotation.x = Math.PI / 2;
       coupling.position.z = s.zMin - 12;
@@ -173,7 +170,7 @@ export class AssemblyViewer extends GearViewer {
       const shell = new THREE.Mesh(
         box.clone(),
         new THREE.MeshStandardMaterial({
-          color: 0x8ca99f,
+          color: 0xb8bcc2,
           transparent: true,
           opacity: 0.1,
           depthWrite: false,
@@ -186,7 +183,7 @@ export class AssemblyViewer extends GearViewer {
     this.envelope = new THREE.LineSegments(
       new THREE.EdgesGeometry(box),
       new THREE.LineBasicMaterial({
-        color: 0x7ba79a,
+        color: 0xb1b5be,
         transparent: true,
         opacity: 0.25,
       }),
@@ -199,8 +196,21 @@ export class AssemblyViewer extends GearViewer {
     this.view(this.viewMode || "iso", true);
     this.resize();
   }
-  view(mode, preserveMotion = false) {
-    super.view(mode, preserveMotion);
+  contactDetail() {
+    const stage = this.result?.stages[this.activeStage];
+    const pinion = this.result?.gears.find((gear) => gear.stage === stage?.index && gear.side === 1);
+    if (!stage?.result.chosen || !pinion) return null;
+    // The calculated offset points toward the wheel for an external mesh
+    // and away from its axis for an internal mesh.
+    return {
+      pair: stage.result,
+      number: stage.index + 1,
+      position: new THREE.Vector3(
+        pinion.x + pinion.offset[0],
+        pinion.y + pinion.offset[1],
+        pinion.z,
+      ),
+    };
   }
   animate(now) {
     const dt = Math.max(0, (now - this.last) / 1000);

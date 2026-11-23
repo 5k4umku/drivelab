@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#101e2c" />
+    <meta name="theme-color" content="#080f1b" />
     <meta
       name="description"
       content="DriveLab: инженерный расчёт зубчатой передачи на Python, сравнение вариантов, 3D зацепление и отчёт Word."
@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="src/builder.css" />
     <link rel="stylesheet" href="src/studio.css" />
+    <link rel="stylesheet" href="src/future-workbench.css" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three/three.module.js" } }
     </script>
@@ -24,50 +25,17 @@
   </head>
   <body>
     <a class="skip" href="#main">К расчёту</a>
-    <aside class="sidebar">
-      <a class="brand" href="#overview"
-        ><span class="brand-mark">D<span>↗</span></span
-        ><span>DriveLab<small>ИНЖЕНЕРНАЯ СРЕДА</small></span></a
-      >
-      <div class="project-label">ПРОЕКТ 001</div>
-      <div class="project-name">Зубчатая передача</div>
-      <p class="sidebar-note">
-        От исходных данных<br />до обоснованного решения
-      </p>
-      <nav id="project-nav" aria-label="Разделы проекта">
-        <a href="#constructor"><span>01</span> Компоновка</a>
-        <a class="active" href="#overview"><span>02</span> Ступень</a>
-        <a href="#selection"><span>03</span> Подбор и точность</a>
-        <a href="#variants"
-          ><span>04</span> Варианты <b id="variant-count">—</b></a
-        >
-        <a href="#checks"><span>05</span> Проверки <b id="check-count">—</b></a>
-        <a href="#coefficients"><span>06</span> Коэффициенты</a>
-        <a href="#calculation"><span>07</span> Ход расчёта</a>
-        <a href="#method"><span>08</span> Методика</a>
-      </nav>
-      <div class="sidebar-bottom">
-        <span class="engine-dot"></span
-        ><span id="engine-status">Загрузка Python…</span
-        ><small
-          >Все вычисления на устройстве<br />v0.5.0 · воспроизводимый
-          расчёт</small
-        >
-      </div>
-    </aside>
     <div class="workspace">
-      <header class="topbar">
-        <div class="breadcrumbs">
-          <button
-            id="mobile-menu"
-            aria-expanded="false"
-            aria-controls="project-nav"
-            aria-label="Открыть меню"
-          >
-            ☰
-          </button>
-          Проект <span>/</span> <b id="route-title">Компоновка</b>
-        </div>
+      <header class="topbar instrument-header">
+        <a class="instrument-brand" href="#constructor"><span aria-hidden="true">D</span>DriveLab</a>
+        <nav id="project-nav" aria-label="Рабочие области">
+          <a href="#constructor">Модель</a><a href="#overview">Ступень</a><a href="#checks">Проверки <b id="check-count">—</b></a>
+          <details class="analysis-menu"><summary>Инструменты</summary><div>
+            <a href="#calculation">Ход расчёта</a><a href="#selection">Подбор и точность</a>
+            <a href="#variants">Варианты <b id="variant-count">—</b></a><a href="#coefficients">Коэффициенты</a><a href="#method">Методика</a>
+          </div></details>
+        </nav>
+        <details class="project-files"><summary>Проект</summary>
         <div class="top-actions">
           <label class="theme-control"
             ><span>Тема</span
@@ -94,14 +62,19 @@
             ↓ Отчёт Word
           </button>
         </div>
+        </details>
       </header>
+      <div class="project-strip">
+        <b id="route-title">Компоновка</b>
+        <label>Ступень <select id="project-stage" disabled><option>Загрузка…</option></select></label>
+        <a href="#assembly-checks" id="project-outcome" aria-live="polite">Ожидаем расчёт</a>
+      </div>
       <main id="main">
         <section id="constructor" class="page-section"></section>
         <section id="selection" class="page-section" hidden></section>
         <section id="overview" class="page-section">
           <div class="page-heading">
             <div>
-              <div class="eyebrow">ПРОЕКТИРОВАНИЕ · РАСЧЁТ · ПРОВЕРКА</div>
               <h1 id="project-heading">
                 Косозубая<br />передача<span>.</span>
               </h1>
@@ -255,20 +228,20 @@
         <section id="checks" class="page-section">
           <div class="section-heading">
             <div>
-              <div class="eyebrow">ПРОВЕРКА РАБОТОСПОСОБНОСТИ</div>
+
               <h2>Прочность и условия применимости</h2>
             </div>
             <span id="check-summary" class="muted"></span>
           </div>
           <div id="strength-cards" class="strength-cards"></div>
-          <div id="checks-list" class="checks-grid"></div>
+          <label class="checks-scope"><input type="checkbox" id="checks-unresolved"> Показать только отказы и условия для уточнения</label><div id="checks-list" class="checks-grid"></div>
         </section>
         <section id="coefficients" class="page-section"></section>
         <section id="calculation" class="page-section">
           <div class="section-heading">
             <div>
-              <div class="eyebrow">ПОСЛЕДОВАТЕЛЬНОСТЬ СЕМИНАРОВ</div>
-              <h2>Расчёт без скрытых шагов</h2>
+
+              <h2>Ход расчёта</h2>
             </div>
             <button id="expand-all" class="outline">Раскрыть все</button>
           </div>
@@ -357,11 +330,6 @@
       </form>
     </dialog>
     <div id="toast" role="status" aria-live="polite"></div>
-    <nav class="mobile-nav" aria-label="Основные разделы">
-      <a href="#constructor">◈<span>Схема</span></a
-      ><a href="#overview">⚙<span>Ступень</span></a
-      ><a href="#selection">⌕<span>Подбор</span></a
-      ><a href="#checks">✓<span>Проверки</span></a>
-    </nav>
+    <div class="runtime-info"><span id="engine-status">Загрузка Python…</span><span>Вычисления на устройстве · v0.6.0</span></div>
   </body>
 </html>

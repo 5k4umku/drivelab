@@ -1,7 +1,7 @@
 // Навигация и оформление не меняют инженерные данные проекта.
 export function setupShell() {
   const labels = {
-    constructor: "Компоновка",
+    constructor: "Модель",
     overview: "Ступень",
     selection: "Подбор",
     variants: "Варианты",
@@ -36,24 +36,18 @@ export function setupShell() {
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
     if (select.value === "system") theme("system");
   });
-  const menu = document.querySelector("#mobile-menu");
-  const narrow = matchMedia("(max-width: 800px)"),
-    sidebar = document.querySelector(".sidebar");
-  function syncMenu() {
-    sidebar.inert =
-      narrow.matches && !document.body.classList.contains("menu-open");
+  const menus = [...document.querySelectorAll(".instrument-header details")];
+  function closeMenus() {
+    menus.forEach((menu) => { menu.open = false; });
   }
-  narrow.addEventListener("change", syncMenu);
-  menu.onclick = () => {
-    const open = document.body.classList.toggle("menu-open");
-    menu.setAttribute("aria-expanded", String(open));
-    syncMenu();
-  };
+  document.addEventListener("click", (event) => {
+    menus.forEach((menu) => { if (!menu.contains(event.target)) menu.open = false; });
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      document.body.classList.remove("menu-open");
-      menu.setAttribute("aria-expanded", "false");
-      syncMenu();
+      const open = menus.find((menu) => menu.open);
+      open?.querySelector("summary").focus();
+      closeMenus();
     }
   });
   function route() {
@@ -64,16 +58,15 @@ export function setupShell() {
     for (const page of document.querySelectorAll(".page-section"))
       page.hidden = page.id !== id;
     for (const link of document.querySelectorAll(
-      ".sidebar nav a,.mobile-nav a",
+      "#project-nav a",
     )) {
       link.classList.toggle("active", link.hash === "#" + id);
       if (link.hash === "#" + id) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
     document.querySelector("#route-title").textContent = labels[id];
-    document.body.classList.remove("menu-open");
-    menu.setAttribute("aria-expanded", "false");
-    syncMenu();
+    closeMenus();
+    document.querySelector(".analysis-menu").classList.toggle("current", !!document.querySelector(".analysis-menu a.active"));
     document.body.dataset.page = id;
     window.scrollTo({ top: 0, behavior: "instant" });
     if (assemblyChecks) {
@@ -125,12 +118,6 @@ export function setupShell() {
     motor = root.querySelector(".motor-card");
   setup.append(global);
   if (motor) setup.append(motor.parentElement);
-  const hint = document.createElement("div");
-  hint.className = "workflow-hint";
-  hint.innerHTML =
-    '<span>01 <b>Соберите схему</b></span><i>→</i><a href="#selection">02 <b>Подберите параметры</b></a><i>→</i><a href="#checks">03 <b>Проверьте и сохраните</b></a>';
-  root.querySelector(".page-heading").after(hint);
-
   // Подробный расчёт — отдельный экран, а не скрытый якорь компоновки.
   root.addEventListener("click", (event) => {
     if (event.target.closest("[data-detail]"))
@@ -142,21 +129,33 @@ export function setupShell() {
   projectNotice.className = "review-notice";
   projectNotice.setAttribute("aria-label", "Итог проверок компоновки");
   projectNotice.setAttribute("aria-live", "polite");
-  hint.after(projectNotice);
+  const desk = document.createElement("div");
+  desk.className = "assembly-desk";
+  root.querySelector(".page-heading").after(desk);
+  const inspector = document.createElement("aside");
+  inspector.className = "assembly-inspector";
+  inspector.setAttribute("aria-label", "Данные ступени и редуктора");
+  inspector.innerHTML = '<h2>Выбранная ступень</h2><div id="inspector-pair"></div><a href="#overview">Открыть расчёт ступени →</a><h2>Выход редуктора</h2>';
+  desk.append(studio, inspector);
+  inspector.append(root.querySelector("#assembly-metrics"), projectNotice);
+  const presets = document.createElement("details");
+  presets.className = "project-setup presets";
+  presets.innerHTML = "<summary><b>Начать с шаблона</b></summary>";
+  desk.after(presets);
+  presets.append(root.querySelector(".builder-toolbar"));
+  const stagePicker = document.querySelector("#project-stage");
+  stagePicker.onchange = () => root.querySelector(`[data-flow="${Number(stagePicker.value)}"]`)?.click();
+
   // Размеры и нагрузки остаются узлами результата расчёта, рядом со сценой.
   const gearView = document.querySelector("#gear-view");
   gearView.after(document.querySelector("#metrics"));
   document.querySelector("#metrics").setAttribute("aria-label", "Геометрия и нагрузка выбранной ступени");
-  studio.append(document.querySelector("#assembly-metrics"));
+
   const checksNotice = document.createElement("section");
   checksNotice.className = "review-notice";
   checksNotice.setAttribute("aria-label", "Область проверки выбранной ступени");
   const checksPage = document.querySelector("#checks");
   checksPage.querySelector(".section-heading").after(checksNotice);
-  const context = document.createElement("p");
-  context.className = "stage-context";
-  context.setAttribute("aria-live", "polite");
-  document.querySelector(".topbar").after(context);
   const write = (node, text) => {
     if (node.textContent !== text) node.textContent = text;
   };
@@ -178,7 +177,7 @@ export function setupShell() {
     );
     const stage = document.querySelector("#active-stage-label")?.textContent ||
       document.querySelector(".variant-label strong")?.textContent || "Ступень ещё не рассчитана";
-    write(context, stage);
+
     const assembly = cards("#assembly-checks .check"),
       selected = cards("#checks-list .check"),
       busy = root.classList.contains("builder-busy") || root.classList.contains("builder-invalid"),
@@ -190,6 +189,9 @@ export function setupShell() {
       pending = assembly.filter((c) => c.pending),
       ratio = assembly.find((c) => c.title === "Общее передаточное число");
     projectNotice.dataset.status = busy || !assembly.length ? "pending" : failures.length ? "fail" : "pending";
+    const outcome = document.querySelector("#project-outcome");
+    write(outcome, busy || !assembly.length ? "Ожидаем расчёт" : failures.length ? `Компоновка · отказов: ${failures.length}` : `Компоновка · уточнить: ${pending.length}`);
+    outcome.dataset.status = !busy && failures.length ? "fail" : "pending";
     const title = make("h2", busy ? "Компоновка: результат обновляется или недоступен" : !assembly.length ?
       "Компоновка: ожидаем расчёт" : failures.length ? `Компоновка: не выполнено проверок — ${failures.length}` :
       "Компоновка: числовые проверки выполнены");
@@ -223,7 +225,7 @@ export function setupShell() {
     checksNotice.replaceChildren(...checksNodes);
   }
   const reviewObserver = new MutationObserver((records) => {
-    if (records.some((record) => ![projectNotice, checksNotice, context].some((node) => node === record.target || node.contains(record.target)))) review();
+    if (records.some((record) => ![projectNotice, checksNotice].some((node) => node === record.target || node.contains(record.target)))) review();
   });
   reviewObserver.observe(document.querySelector("main"), { childList: true, subtree: true });
   reviewObserver.observe(root, { attributes: true, attributeFilter: ["class"] });

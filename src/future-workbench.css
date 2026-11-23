@@ -1,0 +1,257 @@
+:root {
+  --paper: #e8f0f3;
+  --surface: #f9fcfd;
+  --surface-2: #dce9ef;
+  --ink: #101e2b;
+  --muted: #3e5264;
+  --line: #aabfcf;
+  --green: #066982;
+  --accent: #66e2f2;
+  --focus: #067993;
+  --signal-pass: #168280;
+  --signal-pending: #bc6c10;
+  --signal-fail: #ac334b;
+}
+:root[data-theme="dark"] {
+  --paper: #080f1b;
+  --surface: #101c2b;
+  --surface-2: #182b40;
+  --ink: #e7f2fa;
+  --muted: #adc3d5;
+  --line: #344d66;
+  --green: #80edf4;
+  --accent: #80edf4;
+  --focus: #80edf4;
+  --red: #ff9ba4;
+  --signal-pass: #70e1d4;
+  --signal-pending: #ffc662;
+  --signal-fail: #ff9ba4;
+}
+body {
+  font-size: 16px;
+  background: var(--paper);
+}
+:root[data-theme="dark"] .workspace {
+  background: radial-gradient(ellipse 75% 550px at 66% 15px, #152b45 0%, transparent 85%), var(--paper);
+}
+.instrument-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.instrument-brand {
+  letter-spacing: -.052em;
+}
+.instrument-brand span {
+  background: transparent;
+  color: var(--green);
+  border: 1px solid var(--green);
+  clip-path: polygon(0 0, 78% 0, 100% 22%, 100% 100%, 22% 100%, 0 78%);
+}
+#project-nav a,
+.instrument-header summary {
+  font-weight: 700;
+}
+#project-nav > a.active,
+#project-nav .current summary {
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface));
+  box-shadow: inset 0 -2px var(--green);
+}
+.project-strip {
+  border-block: 1px solid color-mix(in srgb, var(--line), transparent 18%);
+  background: color-mix(in srgb, var(--surface), var(--paper) 45%);
+}
+.project-strip :is(label, #route-title) {
+  font-size: .875rem;
+}
+#project-outcome {
+  color: var(--green);
+}
+.page-heading h1,
+.section-heading h2 {
+  font-size: clamp(1.65rem, 4vw, 3.75rem);
+  line-height: 1.04;
+  font-weight: 760;
+  letter-spacing: -.055em;
+  text-wrap: pretty;
+}
+:root #constructor .page-heading {
+  margin-bottom: clamp(14px, 2vw, 28px);
+}
+.assembly-desk .studio,
+.viewer-card {
+  border-radius: 0;
+  border-color: var(--line);
+  box-shadow: none;
+}
+.assembly-desk .studio {
+  border-top: 2px solid var(--green);
+}
+:root[data-theme="dark"] .assembly-desk .studio {
+  box-shadow: 0 -1px 20px #6be2ff30;
+}
+:root .assembly-inspector {
+  position: relative;
+  border-top: 1px solid var(--green);
+  border-left: 0;
+  background: var(--surface);
+  padding: clamp(14px, 1.5vw, 22px);
+}
+.assembly-inspector h2 {
+  color: var(--green);
+  font-weight: 690;
+}
+#inspector-pair strong {
+  color: var(--ink);
+  font-size: clamp(2.6rem, 4.5vw, 4.8rem);
+  line-height: 1.02;
+  letter-spacing: -.065em;
+}
+#inspector-pair strong small {
+  color: var(--green);
+  font-size: .65em;
+}
+.model-layout .design-card,
+.assembly-inspector .review-notice {
+  border-inline-start: 0;
+}
+.scene-controls-row button[aria-pressed="true"],
+.viewer-button.active,
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #09212b;
+}
+.scene-tools .scene-controls-row input[type="range"],
+.playback input {
+  accent-color: var(--green);
+}
+:root .assembly-scene :is(.viewer-top, .playback) {
+  background: var(--surface);
+}
+.scene-tools .scene-readout {
+  color: var(--muted);
+}
+.scene-tools .scene-context {
+  color: var(--green);
+  font-family: var(--mono);
+}
+.pinion-dot { background: #6ce2f5; }
+.wheel-dot { background: #aebccb; }
+#assembly-view:has(.transmission-study) + .scene-tools :is([data-effect="iso"], [data-effect="contact"], label:has(input[type="range"])) {
+  display: none;
+}
+:root .transmission-study {
+  color: #ebf8ff;
+}
+:root .transmission-study :is(.study-tool, .study-readout) {
+  background: #0d1827f5;
+  border: 1px solid #517c9a;
+  box-shadow: 0 3px 20px #090e1b93, inset 0 1px #7eeaf74d;
+}
+:root .transmission-study .study-label,
+:root .transmission-study .study-stage {
+  color: #a4f4f8;
+  font-family: var(--mono);
+}
+:root .transmission-study .study-modes button {
+  border-color: #426783;
+  background: #14283e;
+  color: #e6f6ff;
+}
+:root .transmission-study .study-modes button[aria-pressed="true"] {
+  background: #8aebf4;
+  border-color: #8aebf4;
+  color: #081c2a;
+}
+:root .transmission-study .study-range input {
+  accent-color: #8aebf4;
+}
+.transmission-study:not([data-mode="contact"]) .study-readout {
+  display: none;
+}
+.verification-deck {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: clamp(12px, 2.4vw, 25px);
+  margin-block: 4px 10px;
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--green);
+  background: var(--surface);
+}
+.verification-bar {
+  display: flex;
+  gap: 4px;
+  height: 6px;
+  margin-bottom: 13px;
+}
+.verification-bar span {
+  flex-basis: 0;
+}
+.verification-bar [data-status="pass"] { background: var(--signal-pass); }
+.verification-bar [data-status="pending"] { background: var(--signal-pending); }
+.verification-bar [data-status="fail"] { background: var(--signal-fail); }
+.verification-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.verification-filters button {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  min-width: 0;
+  padding: clamp(8px, 1.4vw, 16px);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+}
+.verification-filters button[aria-pressed="true"] {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+.verification-filters button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.verification-filters span {
+  color: var(--muted);
+  font-size: .9rem;
+}
+.verification-filters strong {
+  font: 500 clamp(1.4rem, 3vw, 2.65rem)/1 var(--mono);
+}
+.verification-filters [data-filter="pass"] strong { color: var(--signal-pass); }
+.verification-filters [data-filter="pending"] strong { color: var(--signal-pending); }
+.verification-filters [data-filter="fail"] strong { color: var(--signal-fail); }
+.verification-empty { margin: 12px 0 0; }
+:is(#checks-list, #assembly-checks) .check[hidden] { display: none !important; }
+#checks:has(.verification-deck) .checks-scope { display: none; }
+#checks-list .check,
+#assembly-checks .check {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  padding-block: 12px;
+}
+#checks-list .check h3,
+#assembly-checks .check h3 {
+  font-size: .98rem;
+  color: var(--ink);
+}
+#checks-list .check p,
+#assembly-checks .check p {
+  color: var(--muted);
+  font-size: .89rem;
+}
+@media (max-width: 630px) {
+  .project-strip :is(label, #route-title) {
+    font-size: .8rem;
+  }
+  :root .transmission-study .study-readout { display: none; }
+  .verification-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .verification-filters span {
+    font-size: .86rem;
+  }
+}

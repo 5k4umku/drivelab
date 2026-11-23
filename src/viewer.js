@@ -176,6 +176,37 @@ function ringGeometry(c, width, type, hand) {
   geo.computeVertexNormals();
   return geo;
 }
+export const sceneAccent = 0x6ce2f5;
+
+function studioEnvironment(renderer) {
+  const surface = document.createElement("canvas");
+  surface.width = 256;
+  surface.height = 128;
+  const ctx = surface.getContext("2d");
+  ctx.fillStyle = "#303134";
+  ctx.fillRect(0, 0, surface.width, surface.height);
+  for (const [x, y, width, height, color] of [
+    [14, 30, 68, 34, "#f6f5f3"],
+    [122, 18, 36, 48, "#c6c7ca"],
+    [174, 64, 64, 18, "#e4e5e5"],
+  ]) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+  const texture = new THREE.CanvasTexture(surface);
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const generator = new THREE.PMREMGenerator(renderer);
+  const environment = generator.fromEquirectangular(texture);
+  generator.dispose();
+  texture.dispose();
+  return environment;
+}
+
+export function steelMaterial(color = 0xb6b8bb) {
+  return new THREE.MeshStandardMaterial({ color, metalness: 0.72, roughness: 0.34 });
+}
+
 export class GearViewer {
   get playing() {
     return this._playing;
@@ -202,28 +233,36 @@ export class GearViewer {
     this.camera = new THREE.PerspectiveCamera(34, 1, 0.1, 10000);
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
-      alpha: true,
       powerPreference: "high-performance",
     });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.renderer.setClearColor(0, 0);
+    this.renderer.setClearColor(0x0c1727);
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.scene.environment = studioEnvironment(this.renderer).texture;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.replaceChildren(this.renderer.domElement);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.075;
     this.controls.enablePan = true;
-    this.scene.add(new THREE.HemisphereLight(0xe8faff, 0x425663, 3));
-    for (const [x, y, z, power] of [
-      [-250, 350, 400, 4],
-      [350, -120, -300, 3],
+    this.scene.add(new THREE.HemisphereLight(0xf4fbff, 0x546d91, 1.4));
+    for (const [x, y, z, power, color] of [
+      [-250, 350, 400, 2.8, 0xf5fbff],
+      [350, -120, -300, 2.25, 0x8fc9ff],
     ]) {
-      const l = new THREE.DirectionalLight(0xffffff, power);
+      const l = new THREE.DirectionalLight(color, power);
       l.position.set(x, y, z);
       this.scene.add(l);
     }
     this.model = new THREE.Group();
     this.scene.add(this.model);
+    this.grid = new THREE.GridHelper(20, 20, 0x648db2, 0x426285);
+    this.grid.rotation.x = Math.PI / 2;
+    this.grid.material.transparent = true;
+    this.grid.material.opacity = 0.44;
+    this.grid.material.depthWrite = false;
+    this.grid.material.toneMapped = false;
+    this.scene.add(this.grid);
     this.lines = new THREE.Group();
     this.model.add(this.lines);
     this.lines.visible = false;
@@ -278,11 +317,7 @@ export class GearViewer {
       group.position.x = (i === 1 ? -c.a / 2 : c.a / 2) - offset;
       this.model.add(group);
       this.gears.push(group);
-      const material = new THREE.MeshStandardMaterial({
-        color: i === 1 ? 0x75c9ab : 0xa7bdca,
-        metalness: 0.45,
-        roughness: 0.38,
-      });
+      const material = steelMaterial(i === 1 ? 0xcbd0d3 : 0xaeb1b6);
       const gear = new THREE.Mesh(
         gearGeometry(
           c,
@@ -307,11 +342,7 @@ export class GearViewer {
           result.b * 1.9,
           40,
         ),
-        new THREE.MeshStandardMaterial({
-          color: 0x506878,
-          metalness: 0.5,
-          roughness: 0.4,
-        }),
+        steelMaterial(0x82858a),
       );
       shaft.rotation.x = Math.PI / 2;
       if (!(c.meshType === "internal" && i === 2)) group.add(shaft);
@@ -321,7 +352,7 @@ export class GearViewer {
       }
       const mark = new THREE.Mesh(
         new THREE.BoxGeometry(c["d" + i] * 0.25, c.m * 0.7, 0.8),
-        new THREE.MeshBasicMaterial({ color: i === 1 ? 0xd8ffed : 0xe4f0f7 }),
+        new THREE.MeshBasicMaterial({ color: i === 1 ? sceneAccent : 0xe4e5e7, toneMapped: false }),
       );
       mark.position.set(c["d" + i] * 0.23, 0, result.b / 2 + 0.7);
       if (c.meshType === "internal" && i === 2) {
@@ -370,9 +401,23 @@ export class GearViewer {
     this.view(this.viewMode || "iso", true);
     this.resize();
   }
+  contactDetail() {
+    const pair = this.result;
+    const c = pair?.chosen;
+    if (!c) return null;
+    const sign = c.meshType === "internal" ? -1 : 1;
+    return {
+      pair,
+      position: new THREE.Vector3(this.gears[0].position.x + sign * (c.dw1 ?? c.d1) / 2, 0, 0),
+    };
+  }
+
   view(mode, preserveMotion = false) {
     if (!preserveMotion) this.pauseMotion?.();
+    const contact = mode === "contact" ? this.contactDetail() : null;
+    if (mode === "contact" && !contact) mode = "iso";
     this.viewMode = mode;
+    this.updateSceneContext?.(contact);
     this.effectsPanel?.querySelectorAll('[data-effect="front"], [data-effect="iso"], [data-effect="contact"]').forEach((button) => {
       button.setAttribute("aria-pressed", String(button.dataset.effect === mode));
     });
@@ -385,17 +430,23 @@ export class GearViewer {
       center = box.isEmpty() ? new THREE.Vector3() : box.getCenter(new THREE.Vector3()),
       size = box.getSize(new THREE.Vector3());
     let s = Math.max(size.x, size.y, size.z, this.extent || 450);
-    if (mode === "contact" && this.result) {
-      const r = this.result,
-        pair = r.chosen ? r : r.stages[0].result,
-        c = pair.chosen;
-      if (r.chosen) center.set(this.gears[0].position.x +
-        (c.meshType === "internal" ? -1 : 1) * (c.dw1 ?? c.d1) / 2, 0, 0);
-      else {
-        const g = r.gears.find((gear) => gear.side === 1);
-        center.set(g.x + g.offset[0], g.y + g.offset[1], g.z);
-      }
+    if (contact) {
+      const { pair, position } = contact;
+      const c = pair.chosen;
+      center.copy(position);
       s = Math.max(pair.b * 1.4, c.m * 12);
+    }
+    if (this.grid) {
+      const targetStep = s / 14;
+      const decade = 10 ** Math.floor(Math.log10(targetStep));
+      const step = ([1, 2, 5, 10].find((factor) => factor * decade >= targetStep) ?? 10) * decade;
+      this.grid.scale.setScalar(step);
+      this.grid.position.set(
+        Math.round(center.x / step) * step,
+        Math.round(center.y / step) * step,
+        contact ? center.z - s * 0.65 : box.isEmpty() ? -s : box.min.z - step,
+      );
+      this.setGridStep?.(step);
     }
     const aspect =
       this.container.clientWidth / Math.max(1, this.container.clientHeight) ||

@@ -2,14 +2,64 @@ import * as THREE from "three";
 import { fmt } from "./format.js";
 
 let sceneId = 0;
+const forceColors = [0xf0f2f5, 0x72dce8, 0xc5b7fa];
+const forceLegend = "X — белый, Y — бирюзовый, Z — лиловый";
 
 // Эффекты меняют только представление. Силы и скорости приходят из Python.
 export function installSceneEffects(viewer) {
   const panel = document.createElement("div");
   const id = `scene-${++sceneId}`;
   panel.className = "scene-tools";
-  panel.innerHTML =
-    `<label for="${id}-explode">Разнесение <output for="${id}-explode">0 %</output><input id="${id}-explode" type="range" min="0" max="100" step="1" value="0" aria-label="Разнести сборку" aria-valuetext="0 %, рабочее зацепление"></label><button data-effect="forces" aria-pressed="false">Силы</button><button data-effect="section" aria-pressed="false">Разрез</button><button data-effect="orbit" aria-pressed="false">Облёт</button><button data-effect="front" title="Вид с торца (F)">С торца</button><button data-effect="iso" title="Общий объёмный вид (I)">Общий вид</button><button data-effect="contact">Зацепление</button><button data-effect="reset" title="Собрать модель и вернуть исходный ракурс (Home)">Исходный вид</button><span class="scene-mode-note" role="status">Рабочее зацепление</span><span class="scene-context"></span><span class="scene-force-note" hidden></span><span class="scene-help" id="${id}-help">Мышь: поворот левой кнопкой, масштаб колесом. Касание: один палец — поворот, два — масштаб и сдвиг. Клавиатура на модели: стрелки — сдвиг, Shift + стрелки — поворот, +/− — масштаб, F/I — ракурс, Home — исходный вид.</span>`;
+  panel.innerHTML = `
+    <style>
+      .scene-tools .scene-controls-row,
+      .scene-tools :is(.scene-views, .scene-options) {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0;
+      }
+      .scene-tools :is(.scene-controls-row, .scene-readout, .scene-help) { flex-basis: 100%; }
+      .scene-tools .scene-readout { display: grid; gap: 4px; line-height: 1.45; }
+      .scene-tools .scene-mode-note { margin: 0; }
+      .scene-tools .scene-context { grid-row: 1; font-size: 12px; font-weight: 600; }
+      .scene-tools .scene-controls-row button {
+        flex: 0 1 auto; min-height: 44px; min-width: 44px; border-radius: 5px;
+      }
+      .scene-tools .scene-controls-row button[aria-pressed="true"] {
+        background: var(--accent); border-color: var(--accent); color: #09212b;
+      }
+      .scene-tools .scene-controls-row input[type="range"] { accent-color: var(--accent); }
+    </style>
+    <div class="scene-controls-row">
+      <div class="scene-views" role="group" aria-label="Ракурс модели">
+        <button type="button" data-effect="iso" aria-pressed="true" title="Общий вид (I)">Общий вид</button>
+        <button type="button" data-effect="front" aria-pressed="false" title="Вид с торца (F)">С торца</button>
+        <button type="button" data-effect="contact" aria-pressed="false" title="Крупный план зацепления (C)">Зацепление</button>
+      </div>
+      <button type="button" data-effect="reset" title="Собрать модель и вернуть исходный ракурс (Home)">Исходный вид</button>
+    </div>
+    <div class="scene-controls-row">
+      <label for="${id}-explode">Разнесение <output for="${id}-explode">0 %</output>
+        <input id="${id}-explode" type="range" min="0" max="100" step="1" value="0"
+          aria-label="Разнести сборку" aria-valuetext="0 %, рабочее зацепление">
+      </label>
+      <div class="scene-options" role="group" aria-label="Слои и движение модели">
+        <button type="button" data-effect="grid" aria-pressed="true" title="Сетка (G)">Сетка</button>
+        <button type="button" data-effect="forces" aria-pressed="false">Силы</button>
+        <button type="button" data-effect="section" aria-pressed="false">Разрез</button>
+        <button type="button" data-effect="orbit" aria-pressed="false">Облёт</button>
+      </div>
+    </div>
+    <div class="scene-readout">
+      <span class="scene-mode-note" role="status">Рабочее зацепление</span>
+      <span class="scene-grid-note"></span>
+      <span class="scene-context"></span>
+      <span class="scene-force-note" hidden></span>
+    </div>
+    <details class="scene-help"><summary>Управление моделью</summary>
+      <p id="${id}-help">Мышь: перетащите модель для поворота, колесо меняет масштаб.
+        Касание: один палец — поворот, два — масштаб и сдвиг.
+        Клавиатура на модели: стрелки — сдвиг, Shift + стрелки — поворот, +/− — масштаб,
+        I — общий вид, F — с торца, C — зацепление, G — сетка, Home — исходный вид.</p>
+    </details>`;
   viewer.container.after(panel);
   viewer.effectsPanel = panel;
   viewer.explosion = 0;
@@ -28,11 +78,6 @@ export function installSceneEffects(viewer) {
     canvas.style.outlineOffset = "-3px";
   });
   canvas.addEventListener("blur", () => { canvas.style.outline = ""; });
-  panel.querySelectorAll("button").forEach((button) => {
-    button.style.minHeight = "44px";
-    button.style.minWidth = "44px";
-    button.style.flex = "0 1 auto";
-  });
   viewer.pauseMotion = () => {
     viewer.playing = false;
     viewer.controls.autoRotate = false;
@@ -49,6 +94,19 @@ export function installSceneEffects(viewer) {
   panel.querySelector("input").oninput = (ev) => {
     viewer.pauseMotion();
     setExplosion(Number(ev.target.value) / 100);
+    if (viewer.explosion && viewer.viewMode === "contact") {
+      viewer.view("iso", true);
+    } else if (!ev.isTrusted) {
+      // A preset can set the native range without a subsequent change event.
+      viewer.view(viewer.viewMode || "iso", true);
+    }
+  };
+  panel.querySelector("input").onchange = () => viewer.view(viewer.viewMode || "iso", true);
+  let gridStep;
+  const gridNote = panel.querySelector(".scene-grid-note");
+  viewer.setGridStep = (step) => {
+    gridStep = step;
+    gridNote.textContent = `Сетка XY · ${fmt(step)} мм`;
   };
   function sync() {
     const percent = Math.round(viewer.explosionTarget * 100);
@@ -63,12 +121,37 @@ export function installSceneEffects(viewer) {
     for (const [action, on] of [["forces", viewer.forcesOn], ["section", viewer.sectionOn], ["orbit", viewer.controls.autoRotate]])
       panel.querySelector(`[data-effect="${action}"]`).setAttribute("aria-pressed", String(!!on));
     panel.querySelector(".scene-force-note").hidden = !viewer.forcesOn;
+    panel.querySelector('[data-effect="grid"]').setAttribute("aria-pressed", String(viewer.grid.visible));
+    gridNote.hidden = !viewer.grid.visible || gridStep === undefined;
   }
   viewer.syncSceneTools = sync;
+  viewer.updateSceneContext = (contact) => {
+    const r = viewer.result;
+    if (!r?.stages) return;
+    const detail = contact ?? viewer.contactDetail();
+    const context = panel.querySelector(".scene-context");
+    const button = panel.querySelector('[data-effect="contact"]');
+    button.disabled = !detail;
+    button.textContent = detail ? `Зацепление · ступень ${detail.number}` : "Зацепление";
+    if (contact) {
+      const { pair, number } = contact;
+      const c = pair.chosen;
+      const mesh = c.meshType === "internal" ? "внутреннее" : "внешнее";
+      context.textContent = `Ступень ${number} · ${mesh} зацепление · z₁/z₂ = ${c.z1}/${c.z2} · aw = ${fmt(c.a)} мм · b = ${fmt(pair.b)} мм`;
+    } else {
+      context.textContent = `${r.stages.length} ступ. · ${r.shafts.length} вал. · nвых = ${fmt(r.outputSpeed, 2)} мин⁻¹`;
+    }
+    for (const arrow of viewer.forceGroup.children)
+      arrow.visible = !contact || arrow.userData.stageNumber === contact.number;
+    const forceNote = panel.querySelector(".scene-force-note");
+    const source = contact ? `Силы на шестерне ступени ${contact.number}` : "Силы на шестернях";
+    forceNote.textContent = `${source}. ${forceLegend}. Общий масштаб сборки, максимум компоненты ${fmt(viewer.forceScale)} Н.`;
+  };
   function action(name) {
     const orbitWasOn = viewer.controls.autoRotate;
     viewer.pauseMotion();
     if (name === "forces") viewer.forcesOn = !viewer.forcesOn;
+    if (name === "grid") viewer.grid.visible = !viewer.grid.visible;
     if (name === "section") {
       viewer.sectionOn = !viewer.sectionOn;
       applySection(viewer);
@@ -78,6 +161,7 @@ export function installSceneEffects(viewer) {
       setExplosion(0);
       viewer.sectionOn = false;
       viewer.forcesOn = false;
+      viewer.grid.visible = true;
       applySection(viewer);
       viewer.view("iso");
     }
@@ -98,7 +182,8 @@ export function installSceneEffects(viewer) {
   viewer.controls.listenToKeyEvents(canvas);
   canvas.addEventListener("keydown", (event) => {
     const key = event.key.toLowerCase(),
-      named = { home: "reset", f: "front", i: "iso" }[key];
+      named = { home: "reset", f: "front", i: "iso", c: "contact", g: "grid" }[key]
+        ?? { KeyF: "front", KeyI: "iso", KeyC: "contact", KeyG: "grid" }[event.code];
     if (event.altKey || ((event.metaKey || event.ctrlKey) && !key.startsWith("arrow"))) return;
     if (!named && !key.startsWith("arrow") && !["+", "=", "-", "−"].includes(key)) return;
     viewer.pauseMotion();
@@ -196,6 +281,7 @@ export function prepareSceneEffects(viewer) {
       .map((g) => ({
         origin: new THREE.Vector3(g.x + g.offset[0], g.y + g.offset[1], g.z),
         force: g.force,
+        stageNumber: g.stage + 1,
       }));
   } else if (r.chosen) {
     const c = r.chosen,
@@ -213,6 +299,7 @@ export function prepareSceneEffects(viewer) {
     ];
   }
   const maximum = Math.max(1, ...loads.flatMap((l) => l.force.map(Math.abs)));
+  viewer.forceScale = maximum;
   for (const load of loads)
     load.force.forEach((value, k) => {
       if (Math.abs(value) < 1e-8) return;
@@ -223,10 +310,25 @@ export function prepareSceneEffects(viewer) {
         dir,
         load.origin,
         len,
-        [0xf4a85a, 0x71cbbb, 0x8fa7ff][k],
+        forceColors[k],
         Math.min(len * 0.3, 12),
         Math.min(len * 0.15, 6),
       );
+      // Give the stem real screen presence and keep force annotations above the mesh.
+      const stemLength = len - Math.min(len * 0.3, 12);
+      const stemRadius = Math.min(stemLength * 0.045, (viewer.extent || 300) * 0.003);
+      const stem = new THREE.Mesh(
+        new THREE.CylinderGeometry(stemRadius, stemRadius, stemLength, 8),
+        new THREE.MeshBasicMaterial({ color: forceColors[k], depthTest: false, toneMapped: false }),
+      );
+      stem.position.y = stemLength / 2;
+      stem.renderOrder = 10;
+      arrow.line.visible = false;
+      arrow.cone.material.depthTest = false;
+      arrow.cone.material.toneMapped = false;
+      arrow.cone.renderOrder = 10;
+      arrow.add(stem);
+      arrow.userData.stageNumber = load.stageNumber;
       viewer.forceGroup.add(arrow);
     });
   if (viewer.effectsPanel) {
@@ -235,11 +337,8 @@ export function prepareSceneEffects(viewer) {
     if (r.chosen) {
       const c = r.chosen;
       context.textContent = `m = ${fmt(c.m)} мм · z₁/z₂ = ${c.z1}/${c.z2} · aw = ${fmt(c.a)} мм · b = ${fmt(r.b)} мм`;
-      forceNote.textContent = `Силы на шестерне: Ft = ${fmt(c.Ft)} Н · Fr = ${fmt(c.Fr)} Н · Fa = ${fmt(c.Fa)} Н. Оси локальные; длины стрелок нормированы.` +
+      forceNote.textContent = `Ft = ${fmt(c.Ft)} Н · Fr = ${fmt(c.Fr)} Н · Fa = ${fmt(c.Fa)} Н. Локальные оси: ${forceLegend}. Длины стрелок нормированы.` +
         (r.input.gearType === "herringbone" ? ` Полушевроны: FaL = ${fmt(c.FaLeft ?? c.FaHalf)} Н, FaR = ${fmt(c.FaRight ?? -c.FaHalf)} Н; Fa — результирующая.` : "");
-    } else {
-      context.textContent = `${r.stages.length} ступ. · ${r.shafts.length} вал. · nвых = ${fmt(r.outputSpeed, 2)} мин⁻¹ · «Зацепление» — ступень 1`;
-      forceNote.textContent = `Силы на шестернях: X — оранжевый, Y — зелёный, Z — синий. Максимум компоненты = ${fmt(maximum)} Н; длины стрелок нормированы.`;
     }
     viewer.syncSceneTools();
   }
