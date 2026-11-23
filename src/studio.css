@@ -1509,3 +1509,131 @@ footer {
   .review-notice h2 { font-size: 14px; }
   .review-notice p { font-size: 12px; }
 }
+
+/* Рабочие области привода */
+:root {
+  --paper:#f1f0ec; --surface:#fffefb; --surface-2:#e8e6df; --ink:#222322; --muted:#565850;
+  --line:#c9cac2; --green:#974000; --accent:#ff984e; --focus:#a54600;
+}
+:root[data-theme="dark"] {
+  --paper:#191a19; --surface:#202220; --surface-2:#2c2e2b; --ink:#f0f0e9; --muted:#b3b5ab;
+  --line:#454741; --green:#ffac71; --accent:#ff984e; --focus:#ffad71;
+}
+.workspace { margin:0; }
+main { max-width:1640px; padding:22px clamp(16px,3vw,52px) 50px; }
+.instrument-header { display:flex; position:relative; z-index:8; align-items:center; flex-wrap:nowrap; gap:clamp(20px,4vw,70px); height:auto; min-height:64px; padding:0 clamp(16px,3vw,52px); background:var(--surface); border-bottom:1px solid var(--line); }
+.instrument-brand { display:flex; align-items:center; gap:9px; color:var(--ink); font-size:24px; font-weight:750; letter-spacing:-1.4px; text-decoration:none; }
+.instrument-brand span { display:grid; place-items:center; width:30px; height:30px; font:800 22px var(--sans); background:var(--accent); color:#211d16; border-radius:2px; }
+#project-nav { display:flex; align-items:center; gap:16px; margin:0; flex-direction:row; }
+#project-nav a, .instrument-header summary { display:inline-flex; gap:6px; align-items:center; padding:12px 3px; color:var(--muted); font:600 14px var(--sans); cursor:pointer; text-decoration:none; }
+#project-nav > a.active, #project-nav .current summary { color:var(--green); box-shadow:inset 0 -3px var(--green); background:transparent; }
+#project-nav b { color:var(--muted); font:10px var(--mono); }
+.instrument-header details { position:relative; border:0; box-shadow:none; background:transparent; }
+.instrument-header summary::after { content:"⌄"; }
+.instrument-header details>div { position:absolute; top:100%; min-width:190px; padding:10px; border:1px solid var(--line); background:var(--surface); box-shadow:0 8px 18px #0002; }
+.instrument-header details:not([open])>div { display:none; }
+#project-nav .analysis-menu a { display:flex; }
+.project-files { margin-left:auto; }
+.project-files .top-actions { right:0; display:grid; gap:5px; width:max-content; }
+.project-strip { display:flex; align-items:center; gap:24px; padding:9px clamp(16px,3vw,52px); border-bottom:1px solid var(--line); background:var(--surface); font-size:13px; }
+.project-strip label { display:flex; gap:7px; align-items:center; color:var(--muted); }
+.project-strip select { color:var(--ink); border:1px solid var(--line); background:var(--surface-2); padding:5px 8px; min-height:32px; border-radius:3px; }
+#project-outcome { color:var(--green); margin-left:auto; font-weight:650; text-decoration:underline; text-underline-offset:3px; }
+#project-outcome[data-status="fail"] { color:var(--red); }
+.runtime-info { display:flex; justify-content:center; gap:18px; padding:18px; color:var(--muted); font:11px var(--mono); }
+.assembly-desk { display:grid; grid-template-columns:minmax(0,1fr) minmax(275px,24%); gap:24px; align-items:start; }
+.assembly-desk .studio { margin:0; min-width:0; border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+.assembly-desk #assembly-view { height:clamp(360px,42vh,560px); }
+.assembly-inspector { padding-left:20px; border-left:1px solid var(--line); min-width:0; }
+.assembly-inspector h2 { font:650 14px var(--sans); margin:4px 0 12px; }
+.assembly-inspector a { color:var(--green); text-underline-offset:3px; font-size:13px; }
+.assembly-inspector a+h2 { margin-top:24px; }
+#inspector-pair strong { display:block; font:500 clamp(30px,3vw,52px) var(--mono); letter-spacing:-2px; }
+#inspector-pair small { color:var(--muted); }
+#inspector-pair dl { display:grid; grid-template-columns:1fr auto; gap:9px; margin:14px 0; font-size:12px; }
+#inspector-pair dd { margin:0; font-family:var(--mono); }
+.assembly-inspector #assembly-metrics { display:grid; grid-template-columns:1fr 1fr; gap:0; margin:0; }
+.assembly-inspector .metric { padding:12px 7px 12px 0; background:transparent; border:0; border-top:1px solid var(--line); box-shadow:none; border-radius:0; }
+.assembly-inspector .metric strong { font-size:20px; }
+.assembly-inspector .review-notice { border-width:1px 0 0; border-radius:0; padding:14px 0; margin-bottom:0; background:transparent; }
+.assembly-inspector .review-notice h2 { color:var(--ink); }
+.assembly-inspector .review-notice[data-status="fail"] h2 { color:var(--red); }
+#constructor .page-heading, #overview .page-heading { margin-bottom:16px; align-items:center; }
+#constructor h1,#overview h1 { font-size:clamp(25px,3vw,46px); letter-spacing:-.045em; }
+.presets .builder-toolbar { margin:0; padding:14px; }
+.presets .builder-toolbar>span { display:none; }
+#checks .review-notice { max-width:none; border-radius:2px; }
+#checks-list { display:grid; grid-template-columns:1fr 1fr; gap:0 24px; }
+#checks-list .check,#assembly-checks .check { background:transparent; border:0; border-bottom:1px solid var(--line); border-radius:0; box-shadow:none; }
+#checks-list .check { align-content:start; }
+.model-layout .design-card { padding:16px 18px; }
+button.primary,.viewer-button.active,.scene-tools button[aria-pressed="true"] { background:var(--accent); color:#28190e; }
+.instrument-header :focus-visible,.project-strip :focus-visible { outline:2px solid var(--focus); outline-offset:2px; }
+@media(max-width:800px){
+  .instrument-header { gap:4px 12px; flex-wrap:wrap; justify-content:space-between; min-height:0; padding:6px 14px 0; }
+  .instrument-brand { font-size:20px; }
+  #project-nav { order:3; width:100%; justify-content:space-between; gap:3px; }
+  #project-nav a,.instrument-header summary { font-size:12px; min-height:40px; }
+  #project-nav .analysis-menu>div { right:0; }
+  .project-strip { padding:6px 14px; gap:6px; flex-wrap:wrap; }
+  .project-strip>b { display:none; }
+  .project-strip label,#project-outcome { font-size:11px; }
+  #project-stage { max-width:145px; }
+  .assembly-desk { display:flex; flex-direction:column; gap:16px; }
+  .assembly-desk .studio,.assembly-inspector { width:100%; }
+  .assembly-inspector { border:0; padding:0; }
+  .assembly-desk #assembly-view { height:clamp(250px,33dvh,390px); }
+  .studio-heading,.assembly-scene .viewer-top { padding:6px 10px; }
+  .studio-heading { flex-direction:row; justify-content:space-between; }
+  .studio-heading .tool-tabs { margin:0; }
+  .project-files .top-actions { width:max-content; }
+  #checks-list { grid-template-columns:1fr; }
+  main { padding-top:14px; padding-bottom:28px; }
+  .runtime-info { flex-wrap:wrap; font-size:10px; }
+}
+
+.instrument-header { backdrop-filter:none; }
+#constructor .page-heading { min-height:0; padding:0; margin:0 0 16px; }
+.studio-heading .live-dot { background:var(--accent); }
+.scene-tools input,.playback input { accent-color:var(--accent); }
+.scene-tools .scene-controls-row,.scene-tools .scene-views,.scene-tools .scene-options { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+.scene-tools .scene-controls-row,.scene-tools .scene-readout { width:100%; }
+.scene-tools .scene-readout { line-height:1.6; }
+.analysis-menu summary,.project-files summary { list-style:none; }
+#calculation .trace-group { border-radius:2px; border-left:3px solid var(--line); box-shadow:none; }
+#calculation .trace-group[open] { border-left-color:var(--green); }
+#checks .section-heading .muted { display:block; }
+.assembly-desk:has(.builder-invalid) #inspector-pair,.builder-invalid #inspector-pair,.builder-busy #inspector-pair { opacity:.55; }
+@media(max-width:800px){
+  #constructor .page-heading { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; }
+  #constructor .page-heading h1 { font-size:24px; }
+  .assembly-inspector .review-notice { margin-top:10px; }
+}
+.viewer-card:has(.scene-tools) :is(#assembly-front,#assembly-iso,#view-front,#view-iso) { display:none; }
+.model-footnote::after { content:none; }
+.checks-scope { display:flex; align-items:center; gap:8px; margin:16px 0; font-size:14px; }
+#checks:has(#checks-unresolved:checked) #checks-list .check:has(.check-symbol.pass) { display:none; }
+#checks:has(#checks-unresolved:checked) #checks-list:not(:has(.fail,.pending))::before { content:"Нет отказов и условий для уточнения"; }
+.project-files .top-actions { align-items:stretch; }
+.project-files .top-actions button { min-height:40px; }
+.instrument-header { justify-content:flex-start; }
+@media(max-width:800px) {
+ #constructor .page-heading { justify-content:space-between; }
+ #constructor .page-heading h1 { font-size:21px; }
+ #assembly-export { padding:6px 8px; min-height:40px; }
+}
+.instrument-header details { overflow:visible; margin-bottom:0; }
+#assembly-view:has(canvas)::after {
+  content:attr(data-output-speed); position:absolute; bottom:12px; left:14px;
+  color:#f2f2e9; background:#1b1c1a; border-left:3px solid #ff984e; padding:5px 9px;
+  font:500 13px var(--mono); letter-spacing:.025em; pointer-events:none;
+}
+#constructor:is(.builder-busy,.builder-invalid) #assembly-view::after { display:none; }
+.assembly-desk .studio { border-top:2px solid var(--green); }
+#inspector-pair strong { font-variant-numeric:tabular-nums; }
+#inspector-pair strong small { color:var(--green); }
+@media(max-width:800px) {
+ #constructor .page-heading { display:grid; grid-template-columns:minmax(0,1fr) auto; }
+ #constructor .page-heading h1 { line-height:1.05; }
+ .assembly-desk .studio-heading { display:flex; flex-direction:row; flex-wrap:wrap; gap:4px 10px; }
+}

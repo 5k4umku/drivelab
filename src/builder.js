@@ -89,12 +89,12 @@ export function createBuilder({
 }) {
   let viewer, latest;
   const root = document.querySelector("#constructor");
-  root.innerHTML = `<div class="page-heading"><div><div class="eyebrow">СВОБОДНАЯ КОМПОНОВКА</div><h1>Конструктор редуктора<span>.</span></h1><p>Ступени, валы и опоры в одной расчётной модели.</p></div><button class="outline" id="assembly-export" disabled>↓ Отчёт по редуктору</button></div>
+  root.innerHTML = `<div class="page-heading"><div><h1>Компоновка редуктора</h1></div><button class="outline" id="assembly-export" disabled>↓ Отчёт по редуктору</button></div>
   <div class="builder-toolbar"><span>Начать с шаблона</span><button data-template="1">1 ступень</button><button data-template="2">2 ступени</button><button data-template="3">3 ступени</button><button data-template="seminar">Семинар №11</button><button data-pdm="spur">ПДМ · прямые зубья</button><button data-pdm="helical">ПДМ · косые зубья</button><button data-pdm="herringbone">ПДМ · шеврон</button></div>
   <div class="builder-global" id="builder-global"></div>
   <div id="assembly-error" class="error-banner" hidden role="alert"></div>
   <div id="assembly-metrics" class="metrics"></div>
-  <div class="assembly-scene viewer-card"><div class="viewer-top"><span><i></i> КОМПОНОВКА · ПАРАЛЛЕЛЬНЫЕ ВАЛЫ</span><div><button class="viewer-button" id="assembly-front">Спереди</button><button class="viewer-button active" id="assembly-iso">3D</button><button class="viewer-button active" id="assembly-envelope" aria-pressed="true">Габариты</button></div></div><div id="assembly-view" aria-label="Трёхмерная компоновка редуктора"><div class="model-loading">Собираем редуктор…</div></div><div class="playback"><button id="assembly-play" class="play" aria-label="Приостановить редуктор">Ⅱ</button><label for="assembly-time">Масштаб времени</label><input id="assembly-time" type="range" min="0" max="100" value="12"><output id="assembly-time-value">0,012×</output></div><p class="model-footnote">Размеры венцов и положение опор связаны с расчётом. Кольца обозначают опоры; золотая опора фиксирует вал по оси. Контур показывает габариты, а не готовый корпус.</p></div>
+  <div class="assembly-scene viewer-card"><div class="viewer-top"><span><i></i> КОМПОНОВКА · ПАРАЛЛЕЛЬНЫЕ ВАЛЫ</span><div><button class="viewer-button" id="assembly-front">Спереди</button><button class="viewer-button active" id="assembly-iso">3D</button><button class="viewer-button active" id="assembly-envelope" aria-pressed="true">Габариты</button></div></div><div id="assembly-view" aria-label="Трёхмерная компоновка редуктора"><div class="model-loading">Собираем редуктор…</div></div><div class="playback"><button id="assembly-play" class="play" aria-label="Приостановить редуктор">Ⅱ</button><label for="assembly-time">Масштаб времени</label><input id="assembly-time" type="range" min="0" max="100" value="12"><output id="assembly-time-value">0,012×</output></div><p class="model-footnote">Размеры венцов и положение опор связаны с расчётом. Светлое кольцо обозначает опору, которая фиксирует вал по оси. Контур показывает габариты, а не готовый корпус.</p></div>
   <div class="builder-section-title"><div><h2>Ступени</h2><p>Каждая следующая получает мощность и фактическую частоту предыдущей.</p></div><button class="primary" id="add-stage">+ Добавить ступень</button></div>
   <div id="stage-flow" aria-label="Поток мощности"></div><div id="stage-editor" class="builder-cards"></div>
   <div class="builder-section-title"><div><h2>Валы и опоры</h2><p>Ось Z идёт вдоль валов. Для каждого вала — две радиальные опоры и одна фиксирующая осевая.</p></div></div><div id="shaft-editor" class="builder-cards"></div>
@@ -338,10 +338,12 @@ export function createBuilder({
     controls,
     busy() {
       root.classList.add("builder-busy");
+      document.querySelector("#project-stage").disabled = true;
       schematic.setEnabled(false);
       root.querySelector("#assembly-export").disabled = true;
     },
     error(message) {
+      document.querySelector("#project-stage").disabled = true;
       schematic.setEnabled(false);
       root.classList.remove("builder-busy");
       root.classList.add("builder-invalid");
@@ -387,6 +389,16 @@ export function createBuilder({
             `<div class="metric"><label>${a}</label><strong>${b}<span>${c}</span></strong><small>${d}</small></div>`,
         )
         .join("");
+      root.querySelector("#assembly-view").dataset.outputSpeed = `nвых  ${fmt(data.outputSpeed, 2)} мин⁻¹`;
+      const picker = document.querySelector("#project-stage");
+      picker.replaceChildren(...data.stages.map((stage, index) =>
+        new Option(`${index + 1} · ${kinds[stage.result.input?.gearType] || "Передача"}`, index),
+      ));
+      picker.value = String(getActive());
+      picker.disabled = false;
+      const pair = data.stages[getActive()].result;
+      root.querySelector("#inspector-pair").innerHTML =
+        `<strong>${fmt(pair.chosen.z1, 0)} <small>:</small> ${fmt(pair.chosen.z2, 0)}</strong><dl><dt>Межосевое расстояние</dt><dd>${fmt(pair.chosen.a)} мм</dd><dt>Рабочая ширина</dt><dd>${fmt(pair.b)} мм</dd></dl>`;
       schematic.update(data);
       root.querySelector("#stage-flow").innerHTML =
         `<span class="flow-end">Вход<br><b>${fmt(data.project.speed, 0)} мин⁻¹</b></span>` +
@@ -417,7 +429,7 @@ export function createBuilder({
       try {
         if (!viewer)
           viewer = new AssemblyViewer(root.querySelector("#assembly-view"));
-        viewer.update(data);
+        viewer.update(data, getActive());
         syncPlay();
       } catch (error) {
         root.querySelector("#assembly-view").textContent =

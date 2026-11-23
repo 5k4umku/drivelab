@@ -111,7 +111,7 @@ export class SchematicEditor {
     if (!t) {
       root.textContent =
         this.mode === "axial"
-          ? "Венцы — зелёные блоки, опоры — синие и золотые."
+          ? "Венцы — прямоугольники, фиксирующие опоры — светлые."
           : "Перемещайте центр выходного вала ступени по окружности: межосевое расстояние сохраняется.";
       return;
     }
@@ -151,7 +151,7 @@ export class SchematicEditor {
     this.bind();
   }
   svg(content, width, height) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="group" aria-label="Редактируемая кинематическая схема редуктора"><style>text{font-family:Arial,sans-serif;fill:#263e4c;font-size:11px}.axis{stroke:#78939e;stroke-width:1;stroke-dasharray:7 4}.shaft{stroke:#455e6f;stroke-width:5}.venet{fill:#d1eee1;stroke:#147b5c;stroke-width:1.5}.support{fill:#e0ebf1;stroke:#4c718a;stroke-width:1.5}.fixed{fill:#f7e3bf;stroke:#ab7835}.house{fill:#eaf1ee;fill-opacity:.35;stroke:#9ebbb0;stroke-width:1.5;stroke-dasharray:5 4}[data-drag]{cursor:grab;outline:none}[data-drag]:focus>*{stroke:#dd6f32;stroke-width:2.5}[data-drag]:hover .venet,[data-drag]:hover .support{fill:#b4e0ce}.dimension{fill:#68808a;font-size:10px}.connector{stroke:#3f8e78;stroke-dasharray:3 3;stroke-width:1;fill:none}</style><rect width="100%" height="100%" fill="#fbfdfc"/><text x="20" y="25" style="font-weight:bold;font-size:14px">${e(this.data.project.name)}</text>${content}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="group" aria-label="Редактируемая кинематическая схема редуктора"><style>text{font-family:system-ui,sans-serif;fill:#ebedf0;font-size:11px}.axis{stroke:#696d75;stroke-width:1;stroke-dasharray:7 4}.shaft{stroke:#b0b4bb;stroke-width:5}.venet{fill:#878b93;stroke:#d2d5d9;stroke-width:1.5}.support{fill:#41444b;stroke:#a2a6ad;stroke-width:1.5}.fixed{fill:#c5c7cb;stroke:#f0f1f2}.house{fill:#3d4046;fill-opacity:.35;stroke:#747980;stroke-width:1.5;stroke-dasharray:5 4}[data-drag]{cursor:grab;outline:none}[data-drag]:focus>*{stroke:#f2a76d;stroke-width:2.5}[data-drag]:hover .venet,[data-drag]:hover .support{fill:#5c6068}.dimension{fill:#acafb6;font-size:10px}.connector{stroke:#8f949d;stroke-dasharray:3 3;stroke-width:1;fill:none}</style><rect width="100%" height="100%" fill="#1e2024"/><text x="20" y="25" style="font-weight:bold;font-size:14px">${e(this.data.project.name)}</text>${content}</svg>`;
   }
   axial() {
     const d = this.data,
@@ -189,7 +189,7 @@ export class SchematicEditor {
           s.bearing === "ball"
             ? `<circle cx="${x}" cy="${y - 11}" r="4"/><circle cx="${x}" cy="${y + 11}" r="4"/>`
             : `<rect x="${x - 5}" y="${y - 15}" width="10" height="7"/><rect x="${x - 5}" y="${y + 8}" width="10" height="7"/>`;
-        content += `<g data-drag="bearing" data-index="${s.index}" data-side="${name}" tabindex="0" role="button" aria-label="Переместить опору ${name} вала ${s.index + 1}"><rect class="support ${fixed ? "fixed" : ""}" x="${x - 10}" y="${y - 21}" width="20" height="42" rx="2"/><g fill="none" stroke="#5c7788">${inside}</g><text x="${x}" y="${y + 39}" text-anchor="middle">${name} ${fmt(s[name].z, 1)}</text></g>`;
+        content += `<g data-drag="bearing" data-index="${s.index}" data-side="${name}" tabindex="0" role="button" aria-label="Переместить опору ${name} вала ${s.index + 1}"><rect class="support ${fixed ? "fixed" : ""}" x="${x - 10}" y="${y - 21}" width="20" height="42" rx="2"/><g fill="none" stroke="#17181b">${inside}</g><text x="${x}" y="${y + 39}" text-anchor="middle">${name} ${fmt(s[name].z, 1)}</text></g>`;
       }
     }
     for (const s of d.stages) {
@@ -213,14 +213,14 @@ export class SchematicEditor {
           : kind === "helical"
             ? `M${x - w * 0.4} ${y + hand * 18} L${x + w * 0.4} ${y - hand * 18}`
             : `M${x - w * 0.4} ${y - hand * 18} L${x} ${y + hand * 18} L${x + w * 0.4} ${y - hand * 18}`;
-      content += `<g data-drag="gear" data-index="${g.stage}" data-pair="${g.stage}" tabindex="0" role="button" aria-label="Переместить зацепление ${g.stage + 1} по валам"><rect class="venet" x="${x - w / 2}" y="${y - 26}" width="${w}" height="52" rx="2"/><path d="${tooth}" fill="none" stroke="#267f64"/><text x="${x}" y="${y - 33}" text-anchor="middle">z${g.side}=${d.stages[g.stage].result.chosen["z" + g.side]}</text></g>`;
+      content += `<g data-drag="gear" data-index="${g.stage}" data-pair="${g.stage}" tabindex="0" role="button" aria-label="Переместить зацепление ${g.stage + 1} по валам"><rect class="venet" x="${x - w / 2}" y="${y - 26}" width="${w}" height="52" rx="2"/><path d="${tooth}" fill="none" stroke="#f4f5f5"/><text x="${x}" y="${y - 33}" text-anchor="middle">z${g.side}=${d.stages[g.stage].result.chosen["z" + g.side]}</text></g>`;
     }
     if (motor) {
       const x = X(d.shafts[0].zMin) - 50,
         y = Y(0);
-      content += `<line class="shaft" x1="${x}" y1="${y}" x2="${X(d.shafts[0].zMin)}" y2="${y}"/><circle cx="${x - 28}" cy="${y}" r="28" fill="#e8edf3" stroke="#415d78" stroke-width="2"/><text x="${x - 28}" y="${y + 6}" text-anchor="middle" style="font-size:20px">М</text><text x="${x - 28}" y="${y + 45}" text-anchor="middle">${e(motor.name)}</text>`;
+      content += `<line class="shaft" x1="${x}" y1="${y}" x2="${X(d.shafts[0].zMin)}" y2="${y}"/><circle cx="${x - 28}" cy="${y}" r="28" fill="#383b42" stroke="#b8bdc4" stroke-width="2"/><text x="${x - 28}" y="${y + 6}" text-anchor="middle" style="font-size:20px">М</text><text x="${x - 28}" y="${y + 45}" text-anchor="middle">${e(motor.name)}</text>`;
     }
-    content += `<line x1="${X(lo)}" y1="${H - 25}" x2="940" y2="${H - 25}" stroke="#9fb2bc"/><text x="160" y="${H - 8}" class="dimension">Z=${fmt(lo, 1)} мм</text><text x="940" y="${H - 8}" text-anchor="end" class="dimension">${fmt(hi, 1)} мм → Z</text>`;
+    content += `<line x1="${X(lo)}" y1="${H - 25}" x2="940" y2="${H - 25}" stroke="#777c85"/><text x="160" y="${H - 8}" class="dimension">Z=${fmt(lo, 1)} мм</text><text x="940" y="${H - 8}" text-anchor="end" class="dimension">${fmt(hi, 1)} мм → Z</text>`;
     return this.svg(content, W, H);
   }
   front() {
@@ -243,17 +243,17 @@ export class SchematicEditor {
         ? ""
         : `<rect class="house" x="${X(b[0] - clearance)}" y="${Y(b[3] + clearance)}" width="${(spanX + 2 * clearance) * scale}" height="${(spanY + 2 * clearance) * scale}" rx="12"/>`;
     for (const g of [...d.gears].sort((a, b) => b.radius - a.radius)) {
-      content += `<circle cx="${X(g.x)}" cy="${Y(g.y)}" r="${g.radius * scale}" fill="#d1eee1" fill-opacity=".22" stroke="#629f8b"/><circle cx="${X(g.x)}" cy="${Y(g.y)}" r="${g.pitchRadius * scale}" fill="none" stroke="#5899ac" stroke-dasharray="4 3"/>`;
+      content += `<circle cx="${X(g.x)}" cy="${Y(g.y)}" r="${g.radius * scale}" fill="#878b93" fill-opacity=".22" stroke="#b6bac0"/><circle cx="${X(g.x)}" cy="${Y(g.y)}" r="${g.pitchRadius * scale}" fill="none" stroke="#9196a0" stroke-dasharray="4 3"/>`;
     }
     for (const g of d.gears.filter((g) => g.innerRadius))
-      content += `<circle cx="${X(g.x)}" cy="${Y(g.y)}" r="${g.innerRadius * scale}" fill="none" stroke="#147b5c" stroke-width="2"/>`;
+      content += `<circle cx="${X(g.x)}" cy="${Y(g.y)}" r="${g.innerRadius * scale}" fill="none" stroke="#d2d5d9" stroke-width="2"/>`;
     for (const s of d.stages) {
       const a = d.shafts[s.index],
         b = d.shafts[s.index + 1];
       content += `<line class="connector" x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(b.x)}" y2="${Y(b.y)}"/><text x="${(X(a.x) + X(b.x)) / 2}" y="${(Y(a.y) + Y(b.y)) / 2 - 8}" text-anchor="middle">aw=${fmt(s.result.chosen.a, 1)} мм</text>`;
     }
     for (const s of d.shafts) {
-      content += `<g ${s.index ? `data-drag="axis" data-index="${s.index - 1}" tabindex="0" role="button" aria-label="Изменить направление ступени ${s.index}"` : ""}><circle cx="${X(s.x)}" cy="${Y(s.y)}" r="15" fill="${s.index ? "#1a7a60" : "#284858"}" stroke="#fff" stroke-width="2"/><text x="${X(s.x)}" y="${Y(s.y) + 4}" text-anchor="middle" style="fill:white;font-weight:bold">${s.index + 1}</text></g>`;
+      content += `<g ${s.index ? `data-drag="axis" data-index="${s.index - 1}" tabindex="0" role="button" aria-label="Изменить направление ступени ${s.index}"` : ""}><circle cx="${X(s.x)}" cy="${Y(s.y)}" r="15" fill="${s.index ? "#383b42" : "#51565e"}" stroke="#fff" stroke-width="2"/><text x="${X(s.x)}" y="${Y(s.y) + 4}" text-anchor="middle" style="fill:white;font-weight:bold">${s.index + 1}</text></g>`;
     }
     content +=
       '<text x="20" y="580" class="dimension">Пунктир — начальные окружности. Номера обозначают валы. Осевое положение показано на развёртке.</text>';

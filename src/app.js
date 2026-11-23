@@ -5,6 +5,8 @@ import { gostFields, bindGostFields, readGostFields } from "./gost-fields.js";
 import { settingsFields, bindSettings, coefficientPanel } from "./settings.js";
 import { setupShell } from "./shell.js";
 import { createWorkbench } from "./workbench.js";
+import { updateTransmissionStudy } from "./transmission-study.js";
+import { updateVerificationDecks } from "./verification-deck.js";
 let workbench;
 const toolCalls = new Map();
 let toolSequence = -1;
@@ -191,6 +193,8 @@ worker.onmessage = ({ data }) => {
   }
   render();
   builder.render(assembly);
+  updateTransmissionStudy(assembly, activeStage);
+  updateVerificationDecks();
   setCalculationState("current");
   workbench?.update(result);
 };
