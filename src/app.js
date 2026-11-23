@@ -20,6 +20,8 @@ let inputs = { ...defaults },
   assembly = null,
   activeStage = 0;
 let project = projectFromInput(inputs);
+let calculationState = "pending";
+let sceneNotices = [];
 const demo = new URLSearchParams(location.search).get("example") === "gost-annex-11";
 const STORAGE = demo ? "drivelab-gost-example" : "drivelab-project-v1";
 try {
@@ -91,7 +93,45 @@ function download(blob, name) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+function initSceneNotices() {
+  const style = document.createElement("style");
+  style.textContent = `
+    .invalid-input .model-layout:has(#gear-view) { opacity: 1; pointer-events: auto; }
+    .builder-invalid .assembly-scene:has(#assembly-view) { display: block; }
+    .builder-busy .assembly-scene:has(#assembly-view) { opacity: 1; }
+    [data-calculation-state="error"] + :is(#gear-view, #assembly-view) .model-loading { display: none; }
+  `;
+  document.head.append(style);
+  sceneNotices = ["#gear-view", "#assembly-view"].map((selector) => {
+    const scene = $(selector);
+    const notice = document.createElement("p");
+    notice.id = scene.id + "-calculation-status";
+    notice.className = "model-footnote";
+    notice.setAttribute("role", "status");
+    const descriptions = [scene.getAttribute("aria-describedby"), notice.id].filter(Boolean);
+    scene.setAttribute("aria-describedby", descriptions.join(" "));
+    scene.before(notice);
+    return { scene, notice };
+  });
+}
+function setCalculationState(state) {
+  calculationState = state;
+  for (const { scene, notice } of sceneNotices) {
+    const hasModel = !!scene.querySelector("canvas");
+    notice.dataset.calculationState = state;
+    notice.hidden = state === "current";
+    if (state === "current") {
+      notice.textContent = "";
+      continue;
+    }
+    const reason = state === "pending" ? "Идёт расчёт." : "Ошибка расчёта.";
+    notice.textContent = hasModel
+      ? reason + " Показана 3D-модель по данным последнего успешного расчёта."
+      : reason + " 3D-модели пока нет.";
+  }
+}
 function showError(message) {
+  setCalculationState("error");
   builder?.error(message);
   $("#errors").hidden = false;
   $("#errors").textContent = message;
@@ -127,12 +167,14 @@ worker.onmessage = ({ data }) => {
     run();
     return;
   }
-  assembly = data.result;
+  if (data.type !== "assembly") return;
+  const next = data.result;
   document.body.classList.remove("recalculating");
-  if (assembly.errors?.length) {
-    showError(assembly.errors.join(" · "));
+  if (next.errors?.length) {
+    showError(next.errors.join(" · "));
     return;
   }
+  assembly = next;
   result = assembly.stages[activeStage].result;
   project = assembly.project;
   inputs = structuredClone(result.input);
@@ -149,11 +191,13 @@ worker.onmessage = ({ data }) => {
   }
   render();
   builder.render(assembly);
+  setCalculationState("current");
   workbench?.update(result);
 };
 function run(type = "calculate") {
   workbench?.invalidate();
   lastId = ++sequence;
+  setCalculationState("pending");
   document.body.classList.add("recalculating");
   $("#export-word").disabled = true;
   builder?.busy();
@@ -520,7 +564,7 @@ $("#import-file").onchange = async (event) => {
   event.target.value = "";
 };
 $("#export-word").onclick = async () => {
-  if (!result?.chosen) return;
+  if (calculationState !== "current" || !result?.chosen) return;
   const button = $("#export-word");
   button.disabled = true;
   button.textContent = "Готовим отчёт…";
@@ -534,7 +578,7 @@ $("#export-word").onclick = async () => {
     toast("Ошибка экспорта: " + error.message);
     console.error(error);
   } finally {
-    button.disabled = false;
+    button.disabled = calculationState !== "current";
     button.textContent = "↓ Отчёт Word";
   }
 };
@@ -590,7 +634,7 @@ builder = createBuilder({
     run();
   },
   onExport: async () => {
-    if (!assembly || assembly.errors?.length) return;
+    if (calculationState !== "current" || !assembly) return;
     const button = $("#assembly-export");
     button.disabled = true;
     button.textContent = "Готовим отчёт…";
@@ -604,7 +648,7 @@ builder = createBuilder({
     } catch (error) {
       toast("Ошибка экспорта: " + error.message);
     } finally {
-      button.disabled = false;
+      button.disabled = calculationState !== "current";
       button.textContent = "↓ Отчёт по редуктору";
     }
   },
@@ -633,5 +677,6 @@ workbench = createWorkbench({
     toast("Параметры применены. Пересчитываем редуктор и опоры.");
   },
 });
+initSceneNotices();
 setupShell();
 run();
